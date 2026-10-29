@@ -37,6 +37,7 @@ jobs:
       - run: flutter create --platforms=android --project-name lan_messenger .
       - run: python3 tool/prepare_platforms.py
       - run: flutter pub get
+      - run: bash -n tool/android_dual_lan_smoke.sh
       - run: dart format --output=write lib test
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
