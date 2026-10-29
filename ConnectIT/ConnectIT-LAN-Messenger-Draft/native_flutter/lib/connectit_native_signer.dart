@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:connectit_client_staging/connectit/master_auth_client.dart';
 import 'package:cryptography/cryptography.dart';
