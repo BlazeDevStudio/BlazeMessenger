@@ -133,9 +133,9 @@ $results = @(
             AtUtc = $event.TimeCreated.ToUniversalTime().ToString("o")
             EventId = $event.Id
             Provider = $event.ProviderName
-            FaultingModule = Get-SafeModuleName $module
-            ExceptionCode = Get-SafeHex $code
-            FaultOffset = Get-SafeHex $offset
+            FaultingModule = (Get-SafeModuleName $module)
+            ExceptionCode = (Get-SafeHex $code)
+            FaultOffset = (Get-SafeHex $offset)
         }
     }
 )
