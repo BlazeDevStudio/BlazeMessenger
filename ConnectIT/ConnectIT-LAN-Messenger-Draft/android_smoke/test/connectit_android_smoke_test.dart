@@ -48,6 +48,10 @@ void main() {
     final enroll = find.byKey(const Key('enroll-first-device'));
     await tester.scrollUntilVisible(enroll, 250,
         scrollable: find.byType(Scrollable).first);
+    // The additional returning-login row pushes this button just below the
+    // 600px test window; make it genuinely hit-testable before tapping.
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
     await tester.tap(enroll);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byKey(const Key('auth-status')), 250,
