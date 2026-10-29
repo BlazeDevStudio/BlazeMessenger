@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:connectit_client_staging/connectit/master_auth_client.dart';
 import 'package:connectit_native_credentials/connectit_local_pin_gate.dart';
