@@ -46,10 +46,10 @@ async function main() {
   // Android masks adaptive icons to a centered safe area (~66% diameter).
   // A full-bleed PNG clips the LAN node badge on round/other launchers.
   // Scale the ENTIRE unmodified product SVG into the 432px foreground,
-  // keeping all nodes inside the 72..360px central adaptive safe zone.
+  // keeping all nodes within the centered 144px-radius safe CIRCLE.
   await sharp(transparent, {density: 288})
-    .resize(336, 336, {fit: 'contain'})
-    .extend({top: 48, bottom: 48, left: 48, right: 48,
+    .resize(272, 272, {fit: 'contain'})
+    .extend({top: 80, bottom: 80, left: 80, right: 80,
       background: {r: 0, g: 0, b: 0, alpha: 0}})
     .png().toFile(path.join(dest, 'v3-adaptive-foreground.png'));
   await sharp({create: {width:432,height:432,channels:4,
