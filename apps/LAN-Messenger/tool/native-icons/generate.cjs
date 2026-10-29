@@ -43,8 +43,14 @@ async function main() {
   const icoSizes = [16,24,32,48,64,128,256];
   await fs.writeFile(path.join(dest, 'lan_messenger.ico'),
     makeIco(icoSizes.map(s => rendered.get(s)), icoSizes));
+  // Android masks adaptive icons to a centered safe area (~66% diameter).
+  // A full-bleed PNG clips the LAN node badge on round/other launchers.
+  // Scale the ENTIRE unmodified product SVG into the 432px foreground,
+  // keeping all nodes inside the 72..360px central adaptive safe zone.
   await sharp(transparent, {density: 288})
-    .resize(432, 432, {fit: 'fill'})
+    .resize(336, 336, {fit: 'contain'})
+    .extend({top: 48, bottom: 48, left: 48, right: 48,
+      background: {r: 0, g: 0, b: 0, alpha: 0}})
     .png().toFile(path.join(dest, 'v3-adaptive-foreground.png'));
   await sharp({create: {width:432,height:432,channels:4,
     background:'#0B1427'}}).png()
