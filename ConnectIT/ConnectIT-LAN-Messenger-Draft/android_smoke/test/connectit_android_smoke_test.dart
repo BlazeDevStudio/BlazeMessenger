@@ -19,9 +19,10 @@ void main() {
     await tester.pumpWidget(const ConnectITAcceptanceApp());
     await tester.pump();
     final requestButton = find.byKey(const Key('begin-bind'));
-    await tester.ensureVisible(requestButton);
+    await tester.scrollUntilVisible(requestButton, 250);
     expect(tester.widget<OutlinedButton>(requestButton).onPressed, isNull);
-    await tester.ensureVisible(find.byKey(const Key('second-device-consent')));
+    await tester.scrollUntilVisible(
+        find.byKey(const Key('second-device-consent')), -180);
     await tester.tap(find.byKey(const Key('second-device-consent')));
     await tester.pump();
     await tester.ensureVisible(requestButton);
@@ -33,7 +34,7 @@ void main() {
     await tester.pumpWidget(const ConnectITAcceptanceApp());
     await tester.pump();
     final review = find.byKey(const Key('review-device-requests'));
-    await tester.ensureVisible(review);
+    await tester.scrollUntilVisible(review, 250);
     expect(tester.widget<FilledButton>(review).onPressed, isNull);
   });
 
