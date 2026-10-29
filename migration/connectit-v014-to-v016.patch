@@ -1,0 +1,1385 @@
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/README.md b/ConnectIT/ConnectIT-LAN-Messenger-Draft/README.md
+index 486f329..34ed264 100644
+--- a/ConnectIT/ConnectIT-LAN-Messenger-Draft/README.md
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/README.md
+@@ -1,3 +1,11 @@
++# ConnectIT CLIENT DRAFT v0.1.6 — Replay hardening integration checkpoint
++
++Runtime source unchanged from v0.1.5; documentation updated only. See docs/DEVICE_REPLAY_v0.1.6.md.
++
++# ConnectIT v0.1.5 — Authentication transport staging (NOT compiled Flutter)
++
++See `docs/CLIENT_AUTH_v0.1.5.md` and `lib/connectit/master_auth_client.dart`. No native key storage, PIN verifier or shipping integration.
++
+ # ConnectIT v0.1.4 compatibility staging only
+ 
+ No changes to original LAN Messenger app. Master and Seed use signed node-key revocations and same-key manual certificate renewal; no Flutter client login or SecureBind UI is implemented here. Original v0.3.2 temporary dummy remains opt-in and disabled by default.
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/CLIENT_AUTH_v0.1.5.md b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/CLIENT_AUTH_v0.1.5.md
+new file mode 100644
+index 0000000..2954149
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/CLIENT_AUTH_v0.1.5.md
+@@ -0,0 +1,25 @@
++# ConnectIT v0.1.5 — First-device login and SecureBind client staging
++
++**Status:** Go Master endpoint and live Python client protocol regression tested. Flutter Dart implementation is staged, NOT analyzer-compiled, not wired into LAN Messenger release, and not deployable with plaintext keys. No platform-OS hardware keystore or PIN verifier has been provided here.
++
++## Master endpoint addition
++
++Authenticated `GET /v1/devices/self` returns **only** `account_id`, `device_id`, `server_time`. It checks the existing Master-signed bearer token and the request-bound Ed25519 proof, replay nonce, active device state and account. Unauthenticated requests are denied. A previously revoked signer is denied. The returned internal `device_id` is REQUIRED by the original `ConnectIT-SecureBind-v1` approval canonical signing format. Original v0.1.4 API had no authenticated way for client to learn this ID, preventing implementation of its approval UI.
++
++## Dart staged adapter
++
++`lib/connectit/master_auth_client.dart` now implements real HTTP request shapes for: first device enrollment, client-side pin verification of the Master-issued Ed25519 JWT, second device binding start, trusted self lookup, pending approvals, explicit local-PIN-gated signed decision, and time-gated binding finalization. It refuses non-loopback HTTP, embeds no bootstrap admin passwords, performs no implicit OS keystore fallback, does not send a local PIN to Master, and follows no redirects.
++
++The implementer MUST supply `ConnectITSecureSigner` using OS-protected Ed25519 private key and installation secret storage. PIN verification must also be OS-protected and must never be replaced with a function that always returns true. HTTPS certificate validation and a **trusted out-of-band Master signing public key pin** are required; `/v1/public-key` is not a trust bootstrap by itself. Do not log credentials or tokens. A device association request should be shown in the UI and never automatically approved. The existing LAN-only app must remain independently usable.
++
++## Verification
++
++Linux Go Master `go test ./...`/`go vet ./...`; localhost real `tests/client_auth_flow.py` passes enrollment, pin-validated JWT, missing/bad auth, self lookup, second-device 409, pending list, early finalization fail, local approval, double approval fail, finalized second certificate, and revocation of original active device. **Four-hour countdown accelerated only by editing a temporary SQLite regression fixture**, not by an HTTP option, server policy or production bypass. Native Flutter analyzer/compile and OS-specific secure keystore/PIN flows remain unverified.
++
++## Important residual risks
++
++- Account passwords sent in request JSON **require HTTPS** in non-loopback deployments; a valid Master token does not substitute for HTTPS.
++- Signed user certificate renewal is currently manual `/v1/enroll` for existing unchanged device; no background refresh scheduling.
++- Master replay cache is in process memory, not a durable witness across restart.
++- Real SecureBind notifications, a trusted platform PIN verifier, public user directory, a five-hop privacy-preserving discovery protocol, and direct-only internet media transport still absent.
++- Distinguish user account ID (10 digits) from database internal device ID and local LAN peer ID; do not interchange them.
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/DEVICE_REPLAY_v0.1.6.md b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/DEVICE_REPLAY_v0.1.6.md
+new file mode 100644
+index 0000000..aaa85f1
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/DEVICE_REPLAY_v0.1.6.md
+@@ -0,0 +1,23 @@
++# ConnectIT v0.1.6 — Persistent device-request replay protection (development only)
++
++## Security delta
++The Master previously held signed HTTP device request nonces in process-local memory. A Master restart could accept the same captured signed request again while the request timestamp was still inside its 120-second validity window.
++
++v0.1.6 adds `device_request_nonces` in SQLite, storing only SHA-256 hashes of (`device_public_key`, 0x00, `nonce`) plus expiry (300 seconds). `admitDeviceNonce` performs cleanup, duplicate detection, the 50,000-row safety limit, and insertion inside ONE `BEGIN IMMEDIATE` transaction. A valid signature is mandatory before it is called. DB errors or missing schema fail closed (503), never falling back to memory. Duplicate signatures and concurrent requests fail with HTTP 409. This applies to authenticated device endpoints including `/v1/devices/self`, `/v1/bind/pending`, and `/v1/bind/decision`.
++
++## Backward compatibility
++The Master startup runs `migrateDeviceReplay()` for existing v0.1.5 databases; fresh `init` includes the same table and expiry index. The staged Dart HTTP client already sends a random 24-byte nonce for each signed request and needs no code change. Satellite source, binaries, federation wire format, node revocations, and the original LAN Messenger application are unchanged.
++
++## Verified locally
++- `go vet ./...`, `CGO_ENABLED=1 go test ./...` Master PASS.
++- Master process rebuilt as Linux x86-64 and exercised by existing `tests/client_auth_flow.py`: PASS.
++- `tests/device_replay_restart.py`: first signed proof 200, identical proof after stop/start 409, new proof 200. Migration from a simulated v0.1.5 schema (table absent): PASS; hashed-only DB rows checked.
++- 32 simultaneous signed nonce admissions: exactly one accepted, 31 rejected; expiry pruning: PASS.
++- Satellite `go vet ./...` and `CGO_ENABLED=0 go test ./...`: PASS (code unchanged).
++- `tests/node_revoke_live.py` and `tests/signed_mesh_e2e.py`: PASS; 201 signed opaque messages, one hop, retrieval after Master offline.
++- The combined Go race-test command exceeded a bounded execution time; this cycle **does not** assert the full race suite passed. No Flutter SDK is available; Flutter/Dart and physical OS credential store remains NOT verified.
++
++## Strict limitations
++A DB filesystem rollback or restored historical backup may restore older replay state; SQLite alone is NOT a trusted monotonic hardware witness. Multi-Master replication and external durable nonce consensus are not implemented. At the fixed 50,000-active-nonce capacity, new authenticated requests receive HTTP 503 until expiry cleanup frees space. No automatic node-key rotation, real-world WAN TLS tests, user notification push, OS PIN verifier, native ConnectIT APK/EXE, privacy directory or direct-only WebRTC calls yet.
++
++GitHub reorganization is in progress. **DO NOT** automatically apply this patch to an old repo, force-push, merge, retag, or overwrite LAN Messenger builds. This file is a code handoff for the future designated canonical ConnectIT source home; the v0.1.5 handoff remains its immediate baseline, ultimately depending on draft PR #234. Development NO-GO.
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.5.json b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.5.json
+new file mode 100644
+index 0000000..78550a0
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.5.json
+@@ -0,0 +1,29 @@
++{
++  "release": "ConnectIT v0.1.5 isolated-development checkpoint",
++  "github_mutations": "NONE; repository reorganization in progress",
++  "baseline_pr": "https://github.com/BlazingSystems/BlazingSystems-Experiments/pull/234",
++  "source_base_commit": "70982717496345287ce9f925ecd4a7af3f32eaa8",
++  "implemented": [
++    "Master: authenticated GET /v1/devices/self",
++    "client staging: first device enrollment and Master key-pinned JWT verification",
++    "client staging: SecureBind begin/pending/explicit local-gated decision/finalize"
++  ],
++  "verified": [
++    "Master go vet and unit tests",
++    "Seed go vet and unit tests (unchanged v0.1.4)",
++    "Master client_auth_flow.py live first/second-device enrollment, negative tests, revocation",
++    "v0.1.4 signed two-seed relay smoke, 201 messages",
++    "v0.1.4 node revocation live smoke",
++    "temporary reference two-account E2E dummy"
++  ],
++  "unverified": [
++    "Flutter/Dart analyzer and native APK/Windows builds",
++    "OS-backed private-key and PIN storage",
++    "physical WAN TLS and end-to-end UI",
++    "automatic authenticated directory"
++  ],
++  "notes": [
++    "four-hour SecureBind countdown accelerated only in disposable SQLite regression fixture",
++    "existing original LAN Messenger application and PR #235 untouched"
++  ]
++}
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.6.json b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.6.json
+new file mode 100644
+index 0000000..449e197
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/docs/VERIFICATION_v0.1.6.json
+@@ -0,0 +1,37 @@
++{
++  "checkpoint": "ConnectIT-v0.1.6-dev",
++  "github_mutations": false,
++  "master_source_changed": [
++    "api.go",
++    "main.go",
++    "schema.sql",
++    "device_replay.go",
++    "device_replay_test.go",
++    "tests/device_replay_restart.py"
++  ],
++  "seed_code_changed": false,
++  "flutter_source_changed": false,
++  "verified": {
++    "Master_go_vet": "PASS",
++    "Master_go_unit": "PASS",
++    "Master_linux_amd64_build": "PASS",
++    "Master_SecureBind_integration": "PASS",
++    "Durable_signed_request_replay_after_restart": "PASS (HTTP 409)",
++    "Fresh_proof_after_restart": "PASS (HTTP 200)",
++    "Legacy_v015_DB_schema_migration": "PASS",
++    "Concurrent_nonce_32_callers": "PASS (1 admitted 31 rejected)",
++    "Seed_go_vet_unit": "PASS",
++    "Node_revocation_live": "PASS",
++    "Signed_mesh_201_messages_and_Master_offline": "PASS"
++  },
++  "not_verified": [
++    "Go full -race suite (bounded run timed out)",
++    "Flutter/Dart tests (SDK unavailable)",
++    "physical WAN TLS, OS key storage, PIN verification"
++  ],
++  "limitations": [
++    "SQLite DB rollback is not a monotonic witness",
++    "50k active request nonce cap",
++    "No LAN Messenger production changes"
++  ]
++}
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/connectit/master_auth_client.dart b/ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/connectit/master_auth_client.dart
+new file mode 100644
+index 0000000..f8b838d
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/connectit/master_auth_client.dart
+@@ -0,0 +1,288 @@
++import 'dart:convert';
++import 'dart:io';
++import 'dart:math';
++import 'dart:typed_data';
++import 'package:crypto/crypto.dart' as hashes;
++import 'package:cryptography/cryptography.dart';
++
++/// ConnectIT Master v0.1.5 protocol adapter. Staging ONLY: deliberately not
++/// imported into LAN Messenger main.dart or its existing LAN identity/network.
++/// Never print passwords, signed tokens, local PINs, installation tokens or keys.
++/// This class does not persist secret data: bind it to an OS-backed keystore.
++abstract interface class ConnectITSecureSigner {
++  /// Ed25519 public key encoded with standard RFC4648 base64.
++  String get publicKeyBase64;
++  /// Random stable per-installation secret stored by the operating system.
++  /// Not a device HWID; must not be regenerated per login.
++  String get installationId;
++  Future<String> signBase64Url(String utf8Message);
++}
++
++class ConnectITMasterSession {
++  final String accountId;
++  final String deviceCertificate;
++  final int expiresAt;
++  const ConnectITMasterSession(this.accountId, this.deviceCertificate,
++      this.expiresAt);
++  bool get validNow => DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 <
++      expiresAt;
++}
++
++class ConnectITOwnDevice {
++  final String accountId;
++  final String deviceId;
++  final int serverTime;
++  const ConnectITOwnDevice(this.accountId, this.deviceId, this.serverTime);
++}
++
++class ConnectITBindChallenge {
++  final String bindingId;
++  final String challenge;
++  final int startedAt;
++  final int expiresAt;
++  const ConnectITBindChallenge(this.bindingId, this.challenge,
++      this.startedAt, this.expiresAt);
++}
++
++class ConnectITPendingApproval {
++  final String id;
++  final String targetKey;
++  final String challenge;
++  final int startedAt;
++  final int expiresAt;
++  final String state;
++  const ConnectITPendingApproval(this.id, this.targetKey, this.challenge,
++      this.startedAt, this.expiresAt, this.state);
++}
++
++class ConnectITPendingList {
++  final int serverTime;
++  final List<ConnectITPendingApproval> requests;
++  const ConnectITPendingList(this.serverTime, this.requests);
++}
++
++class ConnectITMasterException implements Exception {
++  final int statusCode;
++  final String code;
++  const ConnectITMasterException(this.statusCode, this.code);
++  @override
++  String toString() => 'ConnectIT Master rejected operation ($statusCode): $code';
++}
++
++class ConnectITMasterAuthClient {
++  static const int _maxResponseBytes = 64 * 1024;
++  final Uri master;
++  final Uint8List pinnedMasterEd25519PublicKey;
++  final HttpClient _http;
++  ConnectITMasterAuthClient({required this.master,
++      required this.pinnedMasterEd25519PublicKey, HttpClient? httpClient})
++      : _http = httpClient ?? HttpClient() {
++    if (pinnedMasterEd25519PublicKey.length != 32) {
++      throw ArgumentError('The Master public-key pin must be 32 bytes.');
++    }
++    final local = master.host == '127.0.0.1' || master.host == 'localhost' ||
++        master.host == '::1';
++    if (master.userInfo.isNotEmpty || master.hasQuery || master.hasFragment ||
++        master.path != '' && master.path != '/' ||
++        !(master.scheme == 'https' || (local && master.scheme == 'http'))) {
++      throw ArgumentError('ConnectIT Master requires HTTPS except loopback.');
++    }
++    _http.connectionTimeout = const Duration(seconds: 7);
++  }
++
++  void close() => _http.close(force: true);
++  Uri _endpoint(String path) => master.replace(path: path, query: null,
++      fragment: null);
++  String _nonce() {
++    final rng = Random.secure();
++    final bytes = List<int>.generate(24, (_) => rng.nextInt(256));
++    return base64Url.encode(bytes).replaceAll('=', '');
++  }
++  String _unpad(String s) => s.padRight((s.length + 3) ~/ 4 * 4, '=');
++  bool _validAccount(String id) => RegExp(r'^\d{10}$').hasMatch(id);
++
++  Future<Map<String, dynamic>> _call(String path, String method, {
++      Map<String, Object?>? data, ConnectITMasterSession? session,
++      ConnectITSecureSigner? signer}) async {
++    final uri = _endpoint(path);
++    final body = data == null ? <int>[] : utf8.encode(jsonEncode(data));
++    if (body.length > 16384) throw ArgumentError('Master request too large');
++    if ((session == null) != (signer == null)) {
++      throw StateError('Device authorization requires both key and certificate');
++    }
++    final req = await _http.openUrl(method, uri);
++    req.followRedirects = false;
++    req.headers.set(HttpHeaders.acceptHeader, 'application/json');
++    if (data != null) {
++      req.headers.contentType = ContentType.json;
++    }
++    if (session != null && signer != null) {
++      if (!session.validNow) throw StateError('Device certificate expired');
++      final unix = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
++      final timestamp = '$unix';
++      final nonce = _nonce();
++      final hostAddress = uri.host.contains(':') ? '[${uri.host}]' : uri.host;
++      final host = uri.hasPort ? '$hostAddress:${uri.port}' : hostAddress;
++      final requestUri = uri.path + (uri.hasQuery ? '?${uri.query}' : '');
++      final hash = hashes.sha256.convert(body).toString();
++      final canonical = '$method\n$host\n$requestUri\n$timestamp\n$nonce\n$hash';
++      req.headers.set(HttpHeaders.authorizationHeader,
++          'Bearer ${session.deviceCertificate}');
++      req.headers.set('X-Device-Time', timestamp);
++      req.headers.set('X-Device-Nonce', nonce);
++      req.headers.set('X-Device-Signature',
++          await signer.signBase64Url(canonical));
++    }
++    if (body.isNotEmpty) req.add(body);
++    final res = await req.close().timeout(const Duration(seconds: 15));
++    final bytes = BytesBuilder(copy: false);
++    await for (final block in res.timeout(const Duration(seconds: 15))) {
++      if (bytes.length + block.length > _maxResponseBytes) {
++        throw const FormatException('Master response exceeds safety limit');
++      }
++      bytes.add(block);
++    }
++    final decoded = jsonDecode(utf8.decode(bytes.takeBytes()));
++    if (decoded is! Map<String, dynamic>) {
++      throw const FormatException('Invalid Master JSON response');
++    }
++    if (res.statusCode < 200 || res.statusCode >= 300) {
++      final error = decoded['error'];
++      throw ConnectITMasterException(res.statusCode,
++          error is String ? error : 'request rejected');
++    }
++    return decoded;
++  }
++
++  Future<ConnectITMasterSession> _verifiedCertificate(String accountId,
++      ConnectITSecureSigner signer, Map<String, dynamic> response) async {
++    final token = response['device_certificate'];
++    if (token is! String) throw const FormatException('No signed device certificate');
++    final parts = token.split('.');
++    if (parts.length != 3) throw const FormatException('Invalid certificate');
++    final header = jsonDecode(utf8.decode(base64Url.decode(_unpad(parts[0]))));
++    if (header is! Map<String, dynamic> || header['alg'] != 'EdDSA' ||
++        header['typ'] != 'JWT') {
++      throw const FormatException('Unexpected certificate signature algorithm');
++    }
++    final signature = base64Url.decode(_unpad(parts[2]));
++    final key = SimplePublicKey(pinnedMasterEd25519PublicKey,
++        type: KeyPairType.ed25519);
++    final valid = await Ed25519().verify(utf8.encode('${parts[0]}.${parts[1]}'),
++        signature: Signature(signature, publicKey: key));
++    if (!valid) throw const FormatException('Invalid Master certificate signature');
++    final claims = jsonDecode(utf8.decode(base64Url.decode(_unpad(parts[1]))));
++    if (claims is! Map<String, dynamic>) throw const FormatException('Bad claims');
++    final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
++    final exp = claims['exp'];
++    final iat = claims['iat'];
++    if (claims['iss'] != 'blaze-seed-v1' || claims['aud'] != 'blaze-relays' ||
++        claims['sub'] != accountId ||
++        claims['device_public_key'] != signer.publicKeyBase64 ||
++        exp is! int || iat is! int || iat > now + 60 || exp <= now ||
++        exp > iat + 366 * 86400) {
++      throw const FormatException('Untrusted or expired certificate claims');
++    }
++    return ConnectITMasterSession(accountId, token, exp);
++  }
++
++  /// First trusted device only. A 409 is not a successful login: start SecureBind.
++  Future<ConnectITMasterSession> enrollFirstDevice({required String accountId,
++      required String password, required ConnectITSecureSigner signer}) async {
++    if (!_validAccount(accountId)) throw ArgumentError('Invalid 10-digit account');
++    final nonce = _nonce();
++    final data = await _call('/v1/enroll', 'POST', data: {
++      'username': accountId, 'password': password,
++      'device_public_key_b64': signer.publicKeyBase64,
++      'installation_id': signer.installationId, 'nonce': nonce,
++      'proof_signature_b64': await signer.signBase64Url(
++          'ConnectIT-enroll-v1\n$accountId\n$nonce'),
++    });
++    return _verifiedCertificate(accountId, signer, data);
++  }
++
++  Future<ConnectITBindChallenge> beginDeviceBinding({required String accountId,
++      required String password, required ConnectITSecureSigner signer,
++      required bool userConfirmed}) async {
++    if (!userConfirmed) throw StateError('Explicit device-binding consent required');
++    if (!_validAccount(accountId)) throw ArgumentError('Invalid account ID');
++    final nonce = _nonce();
++    final result = await _call('/v1/bind/start', 'POST', data: {
++      'username': accountId, 'password': password,
++      'device_public_key_b64': signer.publicKeyBase64,
++      'installation_id': signer.installationId, 'nonce': nonce,
++      'confirmed': true,
++      'proof_signature_b64': await signer.signBase64Url(
++          'ConnectIT-bind-start-v1\n$accountId\n$nonce'),
++    });
++    return ConnectITBindChallenge(result['binding_id'] as String,
++        result['challenge'] as String, result['started_at'] as int,
++        result['expires_at'] as int);
++  }
++
++  Future<ConnectITOwnDevice> ownDevice(ConnectITMasterSession session,
++      ConnectITSecureSigner signer) async {
++    final obj = await _call('/v1/devices/self', 'GET', session: session,
++        signer: signer);
++    if (obj['account_id'] != session.accountId) {
++      throw const FormatException('Master returned mismatched account identity');
++    }
++    return ConnectITOwnDevice(obj['account_id'] as String,
++        obj['device_id'] as String, obj['server_time'] as int);
++  }
++
++  Future<ConnectITPendingList> pendingBindings(ConnectITMasterSession session,
++      ConnectITSecureSigner signer) async {
++    final obj = await _call('/v1/bind/pending', 'GET',
++        session: session, signer: signer);
++    final list = (obj['requests'] as List).cast<Map<String, dynamic>>().map((x) =>
++        ConnectITPendingApproval(x['id'] as String, x['target_key'] as String,
++            x['challenge'] as String, int.parse('${x['started']}'),
++            int.parse('${x['expires']}'), x['state'] as String)).toList();
++    return ConnectITPendingList(obj['server_time'] as int, list);
++  }
++
++  /// The caller must display target identity, require explicit approval,
++  /// and verify the trusted device's LOCAL PIN via an OS-protected authority.
++  /// Never transmit the PIN to Master. Duplicate intervals are server-rejected.
++  Future<void> decideBinding({required ConnectITMasterSession session,
++      required ConnectITSecureSigner signer, required ConnectITOwnDevice own,
++      required ConnectITPendingApproval request,
++      required Future<bool> Function() verifyLocalPinAndConsent,
++      required String action, required int serverTime}) async {
++    if (action != 'approve' && action != 'revoke' && action != 'not_me') {
++      throw ArgumentError('Unsupported binding decision');
++    }
++    if (own.accountId != session.accountId ||
++        !await verifyLocalPinAndConsent()) {
++      throw StateError('Local PIN or consent not verified');
++    }
++    if (serverTime < request.startedAt || serverTime >= request.expiresAt) {
++      throw StateError('Binding request outside valid time window');
++    }
++    final interval = (serverTime - request.startedAt) ~/ 1200;
++    final approvalId = _nonce();
++    final issued = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
++    final text = 'ConnectIT-SecureBind-v1\n${request.id}\n$approvalId\n'
++        '${own.deviceId}\n${request.targetKey}\n${request.challenge}\n'
++        '$interval\n$issued\n$action';
++    await _call('/v1/bind/decision', 'POST', session: session, signer: signer,
++        data: {'binding_id': request.id, 'approval_id': approvalId,
++          'action': action, 'issued': issued, 'interval_index': interval,
++          'signature_b64': await signer.signBase64Url(text)});
++  }
++
++  Future<ConnectITMasterSession> finalizeBinding({required String bindingId,
++      required String accountId, required String password,
++      required ConnectITSecureSigner signer}) async {
++    if (!_validAccount(accountId)) throw ArgumentError('Invalid account ID');
++    final nonce = _nonce();
++    final result = await _call('/v1/bind/finalize', 'POST', data: {
++      'binding_id': bindingId, 'username': accountId, 'password': password,
++      'nonce': nonce,
++      'proof_signature_b64': await signer.signBase64Url(
++          'ConnectIT-bind-finalize-v1\n$bindingId\n$nonce'),
++    });
++    return _verifiedCertificate(accountId, signer, result);
++  }
++}
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/pubspec.yaml b/ConnectIT/ConnectIT-LAN-Messenger-Draft/pubspec.yaml
+new file mode 100644
+index 0000000..8460a7d
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/pubspec.yaml
+@@ -0,0 +1,14 @@
++name: connectit_client_staging
++description: Isolated ConnectIT client protocol staging; not an integrated Flutter app.
++publish_to: none
++version: 0.1.5
++
++environment:
++  sdk: '>=3.4.0 <4.0.0'
++
++dependencies:
++  crypto: ^3.0.6
++  cryptography: ^2.9.0
++
++dev_dependencies:
++  test: ^1.25.0
+diff --git a/ConnectIT/ConnectIT-LAN-Messenger-Draft/test/master_auth_client_test.dart b/ConnectIT/ConnectIT-LAN-Messenger-Draft/test/master_auth_client_test.dart
+new file mode 100644
+index 0000000..b6e2c1b
+--- /dev/null
++++ b/ConnectIT/ConnectIT-LAN-Messenger-Draft/test/master_auth_client_test.dart
+@@ -0,0 +1,31 @@
++// Pending Dart SDK verification; real wire E2E is covered in Python/Go.
++import 'dart:typed_data';
++import 'package:test/test.dart';
++import 'package:connectit_client_staging/connectit/master_auth_client.dart';
++
++void main() {
++  final pin = Uint8List(32)..fillRange(0, 32, 7);
++  test('remote insecure HTTP is always rejected', () {
++    expect(() => ConnectITMasterAuthClient(
++      master: Uri.parse('http://example.org:7070'),
++      pinnedMasterEd25519PublicKey: pin), throwsArgumentError);
++  });
++  test('localhost HTTP is allowed only with correct issuer pin', () {
++    final client = ConnectITMasterAuthClient(
++      master: Uri.parse('http://127.0.0.1:7070'),
++      pinnedMasterEd25519PublicKey: pin);
++    client.close();
++    expect(() => ConnectITMasterAuthClient(
++      master: Uri.parse('http://localhost:7070'),
++      pinnedMasterEd25519PublicKey: Uint8List(31)), throwsArgumentError);
++  });
++  test('credentials cannot be put in authority URL', () {
++    expect(() => ConnectITMasterAuthClient(
++      master: Uri.parse('https://user:password@example.org'),
++      pinnedMasterEd25519PublicKey: pin), throwsArgumentError);
++  });
++  test('signed session respects expiry', () {
++    const expired = ConnectITMasterSession('0123456789', 'fake', 12345);
++    expect(expired.validNow, false);
++  });
++}
+diff --git a/ConnectIT/ConnectIT-Master-Seed/README.md b/ConnectIT/ConnectIT-Master-Seed/README.md
+index e6ee11e..1cb1df3 100644
+--- a/ConnectIT/ConnectIT-Master-Seed/README.md
++++ b/ConnectIT/ConnectIT-Master-Seed/README.md
+@@ -1,3 +1,11 @@
++# ConnectIT MASTER v0.1.6 — Replay hardening integration checkpoint
++
++New persistent Master replay admission. See docs/DEVICE_REPLAY_v0.1.6.md.
++
++# ConnectIT Master v0.1.5 client-authentication boundary (development only)
++
++Authenticated, request-signed `GET /v1/devices/self` returns the device's own database ID needed for SecureBind approval. The Master retains the same 4-hour approval policy. See `docs/CLIENT_AUTH_v0.1.5.md` and `tests/client_auth_flow.py`. No existing LAN Messenger release is altered.
++
+ # ConnectIT v0.1.4 — Node Revocation / Manual Renewal (DEVELOPMENT ONLY)
+ 
+ New v0.1.4 hardening: exact Master-issued node certificate revocation, separate signed node-key revocation feed, fail-closed cached Seed enforcement on incoming/outgoing federation, safe same-key certificate hot reread, and new negative/live tests. See `docs/NODE_REVOCATION_v0.1.4.md`. Still NO-GO for production.
+diff --git a/ConnectIT/ConnectIT-Master-Seed/api.go b/ConnectIT/ConnectIT-Master-Seed/api.go
+index 0ce06b7..7942689 100644
+--- a/ConnectIT/ConnectIT-Master-Seed/api.go
++++ b/ConnectIT/ConnectIT-Master-Seed/api.go
+@@ -30,7 +30,6 @@ type api struct {
+ 	hmacKey  []byte
+ 	mu       sync.Mutex
+ 	attempts map[string]rate
+-	nonces   map[string]int64
+ }
+ 
+ func (a *api) limit(r *http.Request) bool {
+@@ -80,6 +79,7 @@ func (a *api) routes(mux *http.ServeMux) {
+ 		}
+ 		reply(w, 200, map[string]string{"ed25519_b64": b64(a.priv.Public().(ed25519.PublicKey))})
+ 	})
++	mux.HandleFunc("/v1/devices/self", a.deviceSelf)
+ 	mux.HandleFunc("/v1/enroll", a.enroll)
+ 	mux.HandleFunc("/v1/bind/start", a.bindStart)
+ 	mux.HandleFunc("/v1/bind/pending", a.pending)
+@@ -181,6 +181,26 @@ func (a *api) enroll(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	reply(w, 200, map[string]any{"device_certificate": issue(a.priv, in.Username, in.DevicePublicKey, 7*86400), "expires_in": 7 * 86400, "protocol": "blaze-seed-v1-compatible"})
+ }
++
++// deviceSelf reveals only the authenticated device ID and its own account ID.
++// SecureBind decision signatures require this stable DB-issued ID. Never expose
++// other devices, installation tokens, password hashes, or private keys here.
++func (a *api) deviceSelf(w http.ResponseWriter, r *http.Request) {
++	if r.Method != http.MethodGet {
++		failure(w, http.StatusMethodNotAllowed, "GET required")
++		return
++	}
++	accountID, deviceID, ok := a.trusted(w, r)
++	if !ok {
++		return
++	}
++	reply(w, http.StatusOK, map[string]any{
++		"account_id":  accountID,
++		"device_id":   deviceID,
++		"server_time": time.Now().Unix(),
++	})
++}
++
+ func (a *api) bindStart(w http.ResponseWriter, r *http.Request) {
+ 	if !a.guard(w, r) {
+ 		return
+@@ -295,30 +315,18 @@ func (a *api) trusted(w http.ResponseWriter, r *http.Request) (string, string, b
+ 		failure(w, 401, "invalid device request signature")
+ 		return "", "", false
+ 	}
+-	a.mu.Lock()
+-	if a.nonces == nil {
+-		a.nonces = map[string]int64{}
+-	}
+-	nk := claims.Key + ":" + nonce
+-	if a.nonces[nk] > now {
+-		a.mu.Unlock()
++	// Persist nonce admission atomically. A Master restart must not reset
++	// replay protection while an old signed HTTP request remains in-window.
++	// Fail closed on SQLite errors; never fall back to process-local memory.
++	switch a.admitDeviceNonce(claims.Key, nonce, now) {
++	case nonceAccepted:
++	case nonceReplay:
+ 		failure(w, 409, "replayed request")
+ 		return "", "", false
+-	}
+-	if len(a.nonces) > 10000 {
+-		for k, t := range a.nonces {
+-			if t < now {
+-				delete(a.nonces, k)
+-			}
+-		}
+-	}
+-	if len(a.nonces) > 50000 {
+-		a.mu.Unlock()
+-		failure(w, 503, "replay cache full")
++	default:
++		failure(w, 503, "device replay protection unavailable")
+ 		return "", "", false
+ 	}
+-	a.nonces[nk] = now + 300
+-	a.mu.Unlock()
+ 	var drows []map[string]string
+ 	drows, e = a.db.run("SELECT id,state FROM devices WHERE account_id=? AND public_key=?", claims.Sub, claims.Key)
+ 	if e != nil || len(drows) != 1 || drows[0]["state"] != "active" {
+diff --git a/ConnectIT/ConnectIT-Master-Seed/device_replay.go b/ConnectIT/ConnectIT-Master-Seed/device_replay.go
+new file mode 100644
+index 0000000..8d10bbd
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/device_replay.go
+@@ -0,0 +1,76 @@
++package main
++
++import (
++	"crypto/sha256"
++	"encoding/hex"
++	"strconv"
++	"strings"
++)
++
++// Durable device-proof replay protection. Both the validated public key and
++// nonce are hashed before storage, avoiding a plaintext replay-credential log.
++// SQLite PRIMARY KEY enforces uniqueness across goroutines and process restarts.
++const deviceReplayTTL = int64(300)
++const deviceReplayLimit = 50000
++const replayDDL = `CREATE TABLE IF NOT EXISTS device_request_nonces (
++    replay_hash TEXT NOT NULL PRIMARY KEY,
++    expires_at INTEGER NOT NULL
++);
++CREATE INDEX IF NOT EXISTS device_request_nonces_expiry ON device_request_nonces(expires_at);`
++
++type nonceAdmit uint8
++
++const (
++	nonceAccepted nonceAdmit = iota
++	nonceReplay
++	nonceUnavailable
++)
++
++func migrateDeviceReplay(db *DB) error { return db.script(replayDDL) }
++
++// Call ONLY after verifying the certificate, request timestamp and request-bound
++// Ed25519 signature; do not insert unauthenticated values into persistent state.
++func (a *api) admitDeviceNonce(publicKey, nonce string, now int64) nonceAdmit {
++	if !validPub(publicKey) || !validNonce(nonce) {
++		return nonceUnavailable
++	}
++	digest := sha256.Sum256([]byte(publicKey + "\x00" + nonce))
++	key := hex.EncodeToString(digest[:])
++	result := nonceUnavailable
++	err := a.db.transaction(func() error {
++		// Delete expired rows inside the same transaction as insertion so
++		// retries during concurrent requests cannot slip through a gap.
++		if _, e := a.db.query("DELETE FROM device_request_nonces WHERE expires_at <= ?", now); e != nil {
++			return e
++		}
++		existing, e := a.db.query("SELECT expires_at FROM device_request_nonces WHERE replay_hash=?", key)
++		if e != nil {
++			return e
++		}
++		if len(existing) != 0 {
++			until, e := strconv.ParseInt(strings.TrimSpace(existing[0]["expires_at"]), 10, 64)
++			if e != nil || until > now {
++				result = nonceReplay
++				return nil
++			}
++			return nil // impossible after purge; fail closed
++		}
++		size, e := a.db.query("SELECT COUNT(*) AS count FROM device_request_nonces")
++		if e != nil || len(size) != 1 {
++			return e
++		}
++		count, e := strconv.ParseInt(size[0]["count"], 10, 64)
++		if e != nil || count >= deviceReplayLimit {
++			return nil
++		} // fail closed under pressure
++		if _, e = a.db.query("INSERT INTO device_request_nonces(replay_hash,expires_at) VALUES(?,?)", key, now+deviceReplayTTL); e != nil {
++			return e
++		}
++		result = nonceAccepted
++		return nil
++	})
++	if err != nil {
++		return nonceUnavailable
++	}
++	return result
++}
+diff --git a/ConnectIT/ConnectIT-Master-Seed/device_replay_test.go b/ConnectIT/ConnectIT-Master-Seed/device_replay_test.go
+new file mode 100644
+index 0000000..c669251
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/device_replay_test.go
+@@ -0,0 +1,120 @@
++package main
++
++import (
++	"crypto/ed25519"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"strconv"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++func TestDurableReplayAtomicConcurrencyAndExpiry(t *testing.T) {
++	a, dir, _, _, _ := testSystem(t)
++	_, device, err := ed25519.GenerateKey(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	now := time.Now().Unix()
++	nonce := rnd(24)
++	var accepted, rejected, unavailable atomic.Int32
++	var wait sync.WaitGroup
++	for i := 0; i < 32; i++ {
++		wait.Add(1)
++		go func() {
++			defer wait.Done()
++			switch a.admitDeviceNonce(pub64(device), nonce, now) {
++			case nonceAccepted:
++				accepted.Add(1)
++			case nonceReplay:
++				rejected.Add(1)
++			default:
++				unavailable.Add(1)
++			}
++		}()
++	}
++	wait.Wait()
++	if accepted.Load() != 1 || rejected.Load() != 31 || unavailable.Load() != 0 {
++		t.Fatalf("atomic nonce race accepted=%d rejected=%d unavailable=%d", accepted.Load(), rejected.Load(), unavailable.Load())
++	}
++	rows, err := a.db.run("SELECT replay_hash,expires_at FROM device_request_nonces")
++	if err != nil || len(rows) != 1 || len(rows[0]["replay_hash"]) != 64 || rows[0]["replay_hash"] == nonce {
++		t.Fatalf("nonce must only be stored as a hash: %v %v", rows, err)
++	}
++	a.db.close()
++	again, err := openDB(dbpath(dir))
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(again.close)
++	a.db = again
++	if got := a.admitDeviceNonce(pub64(device), nonce, now); got != nonceReplay {
++		t.Fatalf("nonce replay survived restart? result=%d", got)
++	}
++	// Simulate a naturally expired row; no arbitrary clock bypass in prod.
++	if _, err := a.db.run("UPDATE device_request_nonces SET expires_at=?", now-1); err != nil {
++		t.Fatal(err)
++	}
++	if got := a.admitDeviceNonce(pub64(device), nonce, now); got != nonceAccepted {
++		t.Fatalf("expired nonce was not pruned: %d", got)
++	}
++	if got := a.admitDeviceNonce(pub64(device), rnd(24), now); got != nonceAccepted {
++		t.Fatalf("new signed request refused: %d", got)
++	}
++}
++
++func TestSignedHTTPRequestReplayFailsAfterMasterRestart(t *testing.T) {
++	a, dir, account, device, pw := testSystem(t)
++	enrollmentNonce := rnd(24)
++	enrollment := map[string]any{
++		"username": account, "password": pw, "device_public_key_b64": pub64(device),
++		"installation_id": rnd(24), "nonce": enrollmentNonce,
++		"proof_signature_b64": signDevice(device, "ConnectIT-enroll-v1\n"+account+"\n"+enrollmentNonce),
++	}
++	credential := submit(t, a, "/v1/enroll", enrollment, 200)["device_certificate"].(string)
++	unix := strconv.FormatInt(time.Now().Unix(), 10)
++	nonce := rnd(24)
++	empty := sha256.Sum256(nil)
++	canonical := "GET\n127.0.0.1:7070\n/v1/devices/self\n" + unix + "\n" + nonce + "\n" + hex.EncodeToString(empty[:])
++	signature := signDevice(device, canonical)
++	send := func(instance *api, sig string) (int, map[string]any) {
++		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7070/v1/devices/self", nil)
++		req.Header.Set("Authorization", "Bearer "+credential)
++		req.Header.Set("X-Device-Time", unix)
++		req.Header.Set("X-Device-Nonce", nonce)
++		req.Header.Set("X-Device-Signature", sig)
++		rec := httptest.NewRecorder()
++		mux := http.NewServeMux()
++		instance.routes(mux)
++		mux.ServeHTTP(rec, req)
++		var body map[string]any
++		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
++			t.Fatal(err)
++		}
++		return rec.Code, body
++	}
++	if status, _ := send(a, "invalid"); status != http.StatusUnauthorized {
++		t.Fatalf("bad proof bypassed signature gate: %d", status)
++	}
++	if status, _ := send(a, signature); status != http.StatusOK {
++		t.Fatalf("first signed proof rejected: %d", status)
++	}
++	a.db.close()
++	reopened, err := openDB(dbpath(dir))
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(reopened.close)
++	a.db = reopened
++	if err := migrateDeviceReplay(a.db); err != nil {
++		t.Fatal(err)
++	}
++	if status, body := send(a, signature); status != http.StatusConflict {
++		t.Fatalf("signed replay after restart accepted: %d %v", status, body)
++	}
++}
+diff --git a/ConnectIT/ConnectIT-Master-Seed/docs/CLIENT_AUTH_v0.1.5.md b/ConnectIT/ConnectIT-Master-Seed/docs/CLIENT_AUTH_v0.1.5.md
+new file mode 100644
+index 0000000..2954149
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/docs/CLIENT_AUTH_v0.1.5.md
+@@ -0,0 +1,25 @@
++# ConnectIT v0.1.5 — First-device login and SecureBind client staging
++
++**Status:** Go Master endpoint and live Python client protocol regression tested. Flutter Dart implementation is staged, NOT analyzer-compiled, not wired into LAN Messenger release, and not deployable with plaintext keys. No platform-OS hardware keystore or PIN verifier has been provided here.
++
++## Master endpoint addition
++
++Authenticated `GET /v1/devices/self` returns **only** `account_id`, `device_id`, `server_time`. It checks the existing Master-signed bearer token and the request-bound Ed25519 proof, replay nonce, active device state and account. Unauthenticated requests are denied. A previously revoked signer is denied. The returned internal `device_id` is REQUIRED by the original `ConnectIT-SecureBind-v1` approval canonical signing format. Original v0.1.4 API had no authenticated way for client to learn this ID, preventing implementation of its approval UI.
++
++## Dart staged adapter
++
++`lib/connectit/master_auth_client.dart` now implements real HTTP request shapes for: first device enrollment, client-side pin verification of the Master-issued Ed25519 JWT, second device binding start, trusted self lookup, pending approvals, explicit local-PIN-gated signed decision, and time-gated binding finalization. It refuses non-loopback HTTP, embeds no bootstrap admin passwords, performs no implicit OS keystore fallback, does not send a local PIN to Master, and follows no redirects.
++
++The implementer MUST supply `ConnectITSecureSigner` using OS-protected Ed25519 private key and installation secret storage. PIN verification must also be OS-protected and must never be replaced with a function that always returns true. HTTPS certificate validation and a **trusted out-of-band Master signing public key pin** are required; `/v1/public-key` is not a trust bootstrap by itself. Do not log credentials or tokens. A device association request should be shown in the UI and never automatically approved. The existing LAN-only app must remain independently usable.
++
++## Verification
++
++Linux Go Master `go test ./...`/`go vet ./...`; localhost real `tests/client_auth_flow.py` passes enrollment, pin-validated JWT, missing/bad auth, self lookup, second-device 409, pending list, early finalization fail, local approval, double approval fail, finalized second certificate, and revocation of original active device. **Four-hour countdown accelerated only by editing a temporary SQLite regression fixture**, not by an HTTP option, server policy or production bypass. Native Flutter analyzer/compile and OS-specific secure keystore/PIN flows remain unverified.
++
++## Important residual risks
++
++- Account passwords sent in request JSON **require HTTPS** in non-loopback deployments; a valid Master token does not substitute for HTTPS.
++- Signed user certificate renewal is currently manual `/v1/enroll` for existing unchanged device; no background refresh scheduling.
++- Master replay cache is in process memory, not a durable witness across restart.
++- Real SecureBind notifications, a trusted platform PIN verifier, public user directory, a five-hop privacy-preserving discovery protocol, and direct-only internet media transport still absent.
++- Distinguish user account ID (10 digits) from database internal device ID and local LAN peer ID; do not interchange them.
+diff --git a/ConnectIT/ConnectIT-Master-Seed/docs/DEVICE_REPLAY_v0.1.6.md b/ConnectIT/ConnectIT-Master-Seed/docs/DEVICE_REPLAY_v0.1.6.md
+new file mode 100644
+index 0000000..aaa85f1
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/docs/DEVICE_REPLAY_v0.1.6.md
+@@ -0,0 +1,23 @@
++# ConnectIT v0.1.6 — Persistent device-request replay protection (development only)
++
++## Security delta
++The Master previously held signed HTTP device request nonces in process-local memory. A Master restart could accept the same captured signed request again while the request timestamp was still inside its 120-second validity window.
++
++v0.1.6 adds `device_request_nonces` in SQLite, storing only SHA-256 hashes of (`device_public_key`, 0x00, `nonce`) plus expiry (300 seconds). `admitDeviceNonce` performs cleanup, duplicate detection, the 50,000-row safety limit, and insertion inside ONE `BEGIN IMMEDIATE` transaction. A valid signature is mandatory before it is called. DB errors or missing schema fail closed (503), never falling back to memory. Duplicate signatures and concurrent requests fail with HTTP 409. This applies to authenticated device endpoints including `/v1/devices/self`, `/v1/bind/pending`, and `/v1/bind/decision`.
++
++## Backward compatibility
++The Master startup runs `migrateDeviceReplay()` for existing v0.1.5 databases; fresh `init` includes the same table and expiry index. The staged Dart HTTP client already sends a random 24-byte nonce for each signed request and needs no code change. Satellite source, binaries, federation wire format, node revocations, and the original LAN Messenger application are unchanged.
++
++## Verified locally
++- `go vet ./...`, `CGO_ENABLED=1 go test ./...` Master PASS.
++- Master process rebuilt as Linux x86-64 and exercised by existing `tests/client_auth_flow.py`: PASS.
++- `tests/device_replay_restart.py`: first signed proof 200, identical proof after stop/start 409, new proof 200. Migration from a simulated v0.1.5 schema (table absent): PASS; hashed-only DB rows checked.
++- 32 simultaneous signed nonce admissions: exactly one accepted, 31 rejected; expiry pruning: PASS.
++- Satellite `go vet ./...` and `CGO_ENABLED=0 go test ./...`: PASS (code unchanged).
++- `tests/node_revoke_live.py` and `tests/signed_mesh_e2e.py`: PASS; 201 signed opaque messages, one hop, retrieval after Master offline.
++- The combined Go race-test command exceeded a bounded execution time; this cycle **does not** assert the full race suite passed. No Flutter SDK is available; Flutter/Dart and physical OS credential store remains NOT verified.
++
++## Strict limitations
++A DB filesystem rollback or restored historical backup may restore older replay state; SQLite alone is NOT a trusted monotonic hardware witness. Multi-Master replication and external durable nonce consensus are not implemented. At the fixed 50,000-active-nonce capacity, new authenticated requests receive HTTP 503 until expiry cleanup frees space. No automatic node-key rotation, real-world WAN TLS tests, user notification push, OS PIN verifier, native ConnectIT APK/EXE, privacy directory or direct-only WebRTC calls yet.
++
++GitHub reorganization is in progress. **DO NOT** automatically apply this patch to an old repo, force-push, merge, retag, or overwrite LAN Messenger builds. This file is a code handoff for the future designated canonical ConnectIT source home; the v0.1.5 handoff remains its immediate baseline, ultimately depending on draft PR #234. Development NO-GO.
+diff --git a/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.5.json b/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.5.json
+new file mode 100644
+index 0000000..78550a0
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.5.json
+@@ -0,0 +1,29 @@
++{
++  "release": "ConnectIT v0.1.5 isolated-development checkpoint",
++  "github_mutations": "NONE; repository reorganization in progress",
++  "baseline_pr": "https://github.com/BlazingSystems/BlazingSystems-Experiments/pull/234",
++  "source_base_commit": "70982717496345287ce9f925ecd4a7af3f32eaa8",
++  "implemented": [
++    "Master: authenticated GET /v1/devices/self",
++    "client staging: first device enrollment and Master key-pinned JWT verification",
++    "client staging: SecureBind begin/pending/explicit local-gated decision/finalize"
++  ],
++  "verified": [
++    "Master go vet and unit tests",
++    "Seed go vet and unit tests (unchanged v0.1.4)",
++    "Master client_auth_flow.py live first/second-device enrollment, negative tests, revocation",
++    "v0.1.4 signed two-seed relay smoke, 201 messages",
++    "v0.1.4 node revocation live smoke",
++    "temporary reference two-account E2E dummy"
++  ],
++  "unverified": [
++    "Flutter/Dart analyzer and native APK/Windows builds",
++    "OS-backed private-key and PIN storage",
++    "physical WAN TLS and end-to-end UI",
++    "automatic authenticated directory"
++  ],
++  "notes": [
++    "four-hour SecureBind countdown accelerated only in disposable SQLite regression fixture",
++    "existing original LAN Messenger application and PR #235 untouched"
++  ]
++}
+diff --git a/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.6.json b/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.6.json
+new file mode 100644
+index 0000000..449e197
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/docs/VERIFICATION_v0.1.6.json
+@@ -0,0 +1,37 @@
++{
++  "checkpoint": "ConnectIT-v0.1.6-dev",
++  "github_mutations": false,
++  "master_source_changed": [
++    "api.go",
++    "main.go",
++    "schema.sql",
++    "device_replay.go",
++    "device_replay_test.go",
++    "tests/device_replay_restart.py"
++  ],
++  "seed_code_changed": false,
++  "flutter_source_changed": false,
++  "verified": {
++    "Master_go_vet": "PASS",
++    "Master_go_unit": "PASS",
++    "Master_linux_amd64_build": "PASS",
++    "Master_SecureBind_integration": "PASS",
++    "Durable_signed_request_replay_after_restart": "PASS (HTTP 409)",
++    "Fresh_proof_after_restart": "PASS (HTTP 200)",
++    "Legacy_v015_DB_schema_migration": "PASS",
++    "Concurrent_nonce_32_callers": "PASS (1 admitted 31 rejected)",
++    "Seed_go_vet_unit": "PASS",
++    "Node_revocation_live": "PASS",
++    "Signed_mesh_201_messages_and_Master_offline": "PASS"
++  },
++  "not_verified": [
++    "Go full -race suite (bounded run timed out)",
++    "Flutter/Dart tests (SDK unavailable)",
++    "physical WAN TLS, OS key storage, PIN verification"
++  ],
++  "limitations": [
++    "SQLite DB rollback is not a monotonic witness",
++    "50k active request nonce cap",
++    "No LAN Messenger production changes"
++  ]
++}
+diff --git a/ConnectIT/ConnectIT-Master-Seed/main.go b/ConnectIT/ConnectIT-Master-Seed/main.go
+index 1a567e7..62ed5e4 100644
+--- a/ConnectIT/ConnectIT-Master-Seed/main.go
++++ b/ConnectIT/ConnectIT-Master-Seed/main.go
+@@ -500,6 +500,9 @@ func start(dir, listen, cert, key string) error {
+ 	if e = migrateNodeRevocations(d); e != nil {
+ 		return e
+ 	}
++	if e = migrateDeviceReplay(d); e != nil {
++		return e
++	}
+ 	api := &api{db: d, priv: ed25519.PrivateKey(private), hmacKey: hmacSecret, attempts: map[string]rate{}}
+ 	mux := http.NewServeMux()
+ 	api.routes(mux)
+diff --git a/ConnectIT/ConnectIT-Master-Seed/schema.sql b/ConnectIT/ConnectIT-Master-Seed/schema.sql
+index 0650047..70dac20 100644
+--- a/ConnectIT/ConnectIT-Master-Seed/schema.sql
++++ b/ConnectIT/ConnectIT-Master-Seed/schema.sql
+@@ -20,3 +20,7 @@ PRAGMA user_version=1;
+ 
+ CREATE TABLE IF NOT EXISTS revoked_node_keys (key_hash TEXT PRIMARY KEY, node_id TEXT NOT NULL, revoked_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS node_cert_issues (node_id TEXT NOT NULL, key_hash TEXT NOT NULL, issued_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY(node_id,key_hash,issued_at));
++
++-- v0.1.6: persistent, atomic, hashed device request nonce admission.
++CREATE TABLE IF NOT EXISTS device_request_nonces (replay_hash TEXT NOT NULL PRIMARY KEY, expires_at INTEGER NOT NULL);
++CREATE INDEX IF NOT EXISTS device_request_nonces_expiry ON device_request_nonces(expires_at);
+diff --git a/ConnectIT/ConnectIT-Master-Seed/tests/client_auth_flow.py b/ConnectIT/ConnectIT-Master-Seed/tests/client_auth_flow.py
+new file mode 100644
+index 0000000..b51aa0d
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/tests/client_auth_flow.py
+@@ -0,0 +1,161 @@
++"""Real Master localhost client auth / SecureBind integration test.
++
++Requires cryptography, Master Linux executable; time shift is SQLITE TEST FIXTURE
++ONLY, never a bypass exposed to real clients. No credential material is printed.
++"""
++import base64, hashlib, http.client, json, os, pathlib, secrets, sqlite3, subprocess, tempfile, time
++from urllib.parse import urlsplit
++from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
++from cryptography.hazmat.primitives import serialization
++
++MASTER = pathlib.Path(__file__).resolve().parents[1] / 'bin/connectit-master'
++
++def b64(b): return base64.b64encode(b).decode('ascii')
++def u64(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode('ascii')
++def decu(s): return base64.urlsafe_b64decode(s + '='*(-len(s)%4))
++
++def device():
++    private = Ed25519PrivateKey.generate()
++    pub = b64(private.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw))
++    return private,pub,u64(secrets.token_bytes(32))
++
++def send(url, method, data=None, key=None, cert=None, override_sig=None):
++    u=urlsplit(url)
++    assert u.scheme=='http' and u.hostname in ('127.0.0.1','localhost')
++    body=json.dumps(data,separators=(',',':')).encode() if data is not None else b''
++    headers={'Content-Type':'application/json'} if data is not None else {}
++    if key is not None:
++        stamp=str(int(time.time()));nonce=u64(secrets.token_bytes(24))
++        uri=u.path + ('?' + u.query if u.query else '')
++        canonical='\n'.join([method,u.netloc,uri,stamp,nonce,hashlib.sha256(body).hexdigest()]).encode()
++        signature = override_sig if override_sig is not None else u64(key.sign(canonical))
++        headers.update({'Authorization':'Bearer '+cert, 'X-Device-Time':stamp,
++                        'X-Device-Nonce':nonce,'X-Device-Signature':signature})
++    conn=http.client.HTTPConnection(u.hostname,u.port,timeout=6)
++    try:
++        conn.request(method,u.path + ('?' + u.query if u.query else ''),body if data is not None else None, headers)
++        resp=conn.getresponse()
++        raw=resp.read(256*1024)
++        return resp.status,json.loads(raw)
++    finally:conn.close()
++
++def wait(base):
++    for _ in range(80):
++        try:
++            status,_=send(base+'/healthz','GET')
++            if status==200:return
++        except Exception:pass
++        time.sleep(.075)
++    raise RuntimeError('Master not healthy')
++
++def run(*args,env):
++    return subprocess.run([str(MASTER),*map(str,args)],env=env,capture_output=True,text=True,check=True)
++
++def verify_cert(cert,pin,account,pub):
++    parts=cert.split('.');assert len(parts)==3
++    Ed25519PublicKey.from_public_bytes(pin).verify(decu(parts[2]),(parts[0]+'.'+parts[1]).encode())
++    header=json.loads(decu(parts[0])); assert header=={'alg':'EdDSA','typ':'JWT'}
++    claims=json.loads(decu(parts[1]));now=int(time.time())
++    assert claims['iss']=='blaze-seed-v1' and claims['aud']=='blaze-relays'
++    assert claims['sub']==account and claims['device_public_key']==pub
++    assert claims['iat']<=now+60 and now<claims['exp']<=now+7*86400+60
++
++def enroll(base,account,password,key,pub,install):
++    nonce=u64(secrets.token_bytes(24))
++    payload={'username':account,'password':password,'device_public_key_b64':pub,
++             'installation_id':install,'nonce':nonce,
++             'proof_signature_b64':u64(key.sign(f'ConnectIT-enroll-v1\n{account}\n{nonce}'.encode()))}
++    return send(base+'/v1/enroll','POST',payload)
++
++def main():
++    assert MASTER.is_file(),'Build the Master Linux binary before running'
++    with tempfile.TemporaryDirectory(prefix='connectit-auth-v015-') as tmp:
++        state=pathlib.Path(tmp)/'master'; base='http://127.0.0.1:17987'
++        env=os.environ.copy();env.update(CONNECTIT_BOOTSTRAP_PASSWORD='Bootstrap-Passphrase-TEST-12345')
++        run('init','--dir',state,env=env)
++        env.update(CONNECTIT_OLD_ADMIN_PASSWORD=env['CONNECTIT_BOOTSTRAP_PASSWORD'],CONNECTIT_NEW_ADMIN_PASSWORD='RotatedAdmin-Passphrase-TEST-54321')
++        run('admin-rotate','--dir',state,env=env)
++        password='TestAccount-Passphrase-859213'
++        env['CONNECTIT_PASSWORD']=password
++        run('account-create','--dir',state,'--nickname','MasterClientAuthSmoke',env=env)
++        cx=sqlite3.connect(state/'connectit.sqlite3')
++        account=cx.execute('select id from accounts').fetchone()[0];cx.close()
++        assert len(account)==10 and account.isdecimal()
++        issuer=base64.b64decode((state/'public.key').read_text().strip())
++        server=subprocess.Popen([str(MASTER),'start','--dir',str(state),'--listen','127.0.0.1:17987'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
++        try:
++            wait(base)
++            key_a,pub_a,install_a=device()
++            status,out=enroll(base,account,password,key_a,pub_a,install_a)
++            assert status==200,(status,out)
++            cert_a=out['device_certificate'];verify_cert(cert_a,issuer,account,pub_a)
++            status,self_info=send(base+'/v1/devices/self','GET')
++            assert status==401,(status,self_info)
++            status,self_info=send(base+'/v1/devices/self','GET',key=key_a,cert=cert_a)
++            assert status==200,(status,self_info)
++            assert self_info['account_id']==account and len(self_info['device_id'])>=16
++            assert 'private' not in self_info and 'installation' not in self_info
++            status,_=send(base+'/v1/devices/self','GET',key=key_a,cert=cert_a,override_sig=u64(b'\x00'*64))
++            assert status==401, status
++            key_b,pub_b,install_b=device()
++            status,denial=enroll(base,account,password,key_b,pub_b,install_b)
++            assert status==409,(status,denial)
++            nonce=u64(secrets.token_bytes(24))
++            begin={'username':account,'password':password,'device_public_key_b64':pub_b,
++                   'installation_id':install_b,'nonce':nonce,'confirmed':True,
++                   'proof_signature_b64':u64(key_b.sign(f'ConnectIT-bind-start-v1\n{account}\n{nonce}'.encode()))}
++            status,pending=send(base+'/v1/bind/start','POST',begin)
++            assert status==202,(status,pending)
++            bind_id=pending['binding_id']
++            status,inbox=send(base+'/v1/bind/pending','GET',key=key_a,cert=cert_a)
++            assert status==200,(status,inbox)
++            req=next(x for x in inbox['requests'] if x['id']==bind_id)
++            assert req['target_key']==pub_b
++            # Early finalize must fail because a trusted-device approval is required.
++            nonce=u64(secrets.token_bytes(24))
++            finish={'binding_id':bind_id,'username':account,'password':password,'nonce':nonce,
++                    'proof_signature_b64':u64(key_b.sign(f'ConnectIT-bind-finalize-v1\n{bind_id}\n{nonce}'.encode()))}
++            status,_=send(base+'/v1/bind/finalize','POST',finish)
++            assert status==409,status
++            # Move the database clock anchor in a private temporary SQLite fixture
++            # to test the four-hour gate without a real four-hour wait.
++            cx=sqlite3.connect(state/'connectit.sqlite3')
++            cx.execute('UPDATE bindings SET started=? WHERE id=?',(int(time.time())-14400,bind_id))
++            cx.commit(); cx.close()
++            issued=int(time.time()); interval=12; approval=u64(secrets.token_bytes(24))
++            signed='\n'.join(['ConnectIT-SecureBind-v1',bind_id,approval,self_info['device_id'],
++                              pub_b,req['challenge'],str(interval),str(issued),'approve'])
++            decision={'binding_id':bind_id,'approval_id':approval,'action':'approve',
++                      'issued':issued,'interval_index':interval,'signature_b64':u64(key_a.sign(signed.encode()))}
++            status,result=send(base+'/v1/bind/decision','POST',decision,key=key_a,cert=cert_a)
++            assert status==200,(status,result)
++            assert result['approvals']==1
++            # Duplicate approval must fail via replay/unique-interval protection.
++            status,_=send(base+'/v1/bind/decision','POST',decision,key=key_a,cert=cert_a)
++            assert status==409,status
++            status,done=send(base+'/v1/bind/finalize','POST',finish)
++            assert status==200,(status,done)
++            cert_b=done['device_certificate'];verify_cert(cert_b,issuer,account,pub_b)
++            status,self_b=send(base+'/v1/devices/self','GET',key=key_b,cert=cert_b)
++            assert status==200 and self_b['device_id']!=self_info['device_id']
++            # Existing original cert immediately stops authorizing after local revoke.
++            run('device-revoke','--dir',state,'--device-id',self_info['device_id'],env=env)
++            status,_=send(base+'/v1/devices/self','GET',key=key_a,cert=cert_a)
++            assert status==403,status
++            status,_=send(base+'/v1/devices/self','GET',key=key_b,cert=cert_b)
++            assert status==200,status
++            print(json.dumps({'first_device_enrollment':'PASS','master_signed_certificate_pin':'PASS',
++                              'signed_self_device_lookup':'PASS','missing_or_bad_auth_rejected':'PASS',
++                              'second_device_enrollment_requires_bind':'PASS','pending_signed_lookup':'PASS',
++                              'unauthorized_early_finalize_rejected':'PASS',
++                              'trusted_approval_with_device_id':'PASS',
++                              'duplicate_approval_denied':'PASS','second_device_finalize':'PASS',
++                              'revoked_original_device_denied':'PASS',
++                              'time_acceleration':'SQLITE_FIXTURE_ONLY'}))
++        finally:
++            if server.poll() is None:
++                server.terminate()
++            try:server.wait(timeout=5)
++            except subprocess.TimeoutExpired:server.kill();server.wait()
++
++if __name__=='__main__':main()
+diff --git a/ConnectIT/ConnectIT-Master-Seed/tests/device_replay_restart.py b/ConnectIT/ConnectIT-Master-Seed/tests/device_replay_restart.py
+new file mode 100644
+index 0000000..8009e97
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Master-Seed/tests/device_replay_restart.py
+@@ -0,0 +1,79 @@
++"""Real-process Master restart replay regression, in disposable localhost state."""
++import base64
++import hashlib
++import http.client
++import json
++import os
++import pathlib
++import secrets
++import sqlite3
++import subprocess
++import tempfile
++import time
++from urllib.parse import urlsplit
++from client_auth_flow import MASTER, device, enroll, run, wait, u64
++
++PORT = 17991
++BASE = f'http://127.0.0.1:{PORT}'
++
++def signed_read(key, cert, stamp, nonce):
++    url=urlsplit(BASE+'/v1/devices/self')
++    body_hash=hashlib.sha256(b'').hexdigest()
++    text='\n'.join(('GET',url.netloc,url.path,stamp,nonce,body_hash))
++    headers={'Authorization':'Bearer '+cert,'X-Device-Time':stamp,'X-Device-Nonce':nonce,
++             'X-Device-Signature':u64(key.sign(text.encode()))}
++    conn=http.client.HTTPConnection(url.hostname,url.port,timeout=5)
++    try:
++        conn.request('GET',url.path,headers=headers)
++        result=conn.getresponse()
++        return result.status,json.loads(result.read(8192))
++    finally:
++        conn.close()
++
++def start_server(path):
++    p=subprocess.Popen([str(MASTER),'start','--dir',str(path),'--listen',f'127.0.0.1:{PORT}'],
++                        stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
++    wait(BASE)
++    return p
++
++def stop_server(p):
++    p.terminate()
++    try:p.wait(timeout=5)
++    except subprocess.TimeoutExpired:
++        p.kill();p.wait(timeout=3)
++
++with tempfile.TemporaryDirectory(prefix='connectit-replay-v016-') as home:
++    directory=pathlib.Path(home)/'master'
++    env=os.environ.copy();env['CONNECTIT_BOOTSTRAP_PASSWORD']='Temporary-TEST-ReplayPassphrase-9919'
++    run('init','--dir',directory,env=env)
++    env.update(CONNECTIT_OLD_ADMIN_PASSWORD=env['CONNECTIT_BOOTSTRAP_PASSWORD'],
++               CONNECTIT_NEW_ADMIN_PASSWORD='Rotated-TEST-ReplayPassphrase-9920',
++               CONNECTIT_PASSWORD='Account-TEST-ReplayPassword-9921')
++    run('admin-rotate','--dir',directory,env=env)
++    run('account-create','--dir',directory,'--nickname','ReplayFixture',env=env)
++    with sqlite3.connect(directory/'connectit.sqlite3') as db:
++        account=db.execute('SELECT id FROM accounts').fetchone()[0]
++        # Recreate the exact upgrade situation: an existing v0.1.5 database
++        # does not yet have the v0.1.6 replay table/index.
++        db.execute('DROP TABLE device_request_nonces')
++    server=start_server(directory)
++    try:
++        key,pub,installation=device()
++        status,data=enroll(BASE,account,env['CONNECTIT_PASSWORD'],key,pub,installation)
++        assert status==200,(status,data)
++        cert=data['device_certificate']
++        stamp=str(int(time.time()));nonce=u64(secrets.token_bytes(24))
++        assert signed_read(key,cert,stamp,nonce)[0]==200
++        stop_server(server)
++        server=start_server(directory)
++        assert signed_read(key,cert,stamp,nonce)[0]==409, 'replayed signed proof accepted after Master restart'
++        assert signed_read(key,cert,stamp,u64(secrets.token_bytes(24)))[0]==200
++        with sqlite3.connect(directory/'connectit.sqlite3') as db:
++            rows=db.execute('SELECT replay_hash FROM device_request_nonces').fetchall()
++            assert len(rows)>=2 and all(len(x[0])==64 for x in rows)
++            assert all(nonce not in x[0] and pub not in x[0] for x in rows)
++        print(json.dumps({'signed_device_first':200,'same_proof_after_master_restart':409,
++                          'fresh_proof_after_restart':200,'durable_hash_only_nonces':'PASS',
++                          'live_master_restart':'PASS','legacy_db_schema_migration':'PASS'}))
++    finally:
++        stop_server(server)
+diff --git a/ConnectIT/ConnectIT-Seed/README.md b/ConnectIT/ConnectIT-Seed/README.md
+index 31929a2..717a0b8 100644
+--- a/ConnectIT/ConnectIT-Seed/README.md
++++ b/ConnectIT/ConnectIT-Seed/README.md
+@@ -1,3 +1,11 @@
++# ConnectIT SATELLITE v0.1.6 — Replay hardening integration checkpoint
++
++Runtime source unchanged from v0.1.5; documentation updated only. See docs/DEVICE_REPLAY_v0.1.6.md.
++
++# ConnectIT Seed v0.1.5 carry-forward (unchanged v0.1.4 relay binary and source)
++
++This archive includes the existing verified v0.1.4 satellite as a **compatible reference**; v0.1.5 introduces an authenticated Master self-device lookup and separate draft client adapter, not a new Seed wire protocol.
++
+ # ConnectIT v0.1.4 — Node Revocation / Manual Renewal (DEVELOPMENT ONLY)
+ 
+ New v0.1.4 hardening: exact Master-issued node certificate revocation, separate signed node-key revocation feed, fail-closed cached Seed enforcement on incoming/outgoing federation, safe same-key certificate hot reread, and new negative/live tests. See `docs/NODE_REVOCATION_v0.1.4.md`. Still NO-GO for production.
+diff --git a/ConnectIT/ConnectIT-Seed/docs/CLIENT_AUTH_v0.1.5.md b/ConnectIT/ConnectIT-Seed/docs/CLIENT_AUTH_v0.1.5.md
+new file mode 100644
+index 0000000..2954149
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Seed/docs/CLIENT_AUTH_v0.1.5.md
+@@ -0,0 +1,25 @@
++# ConnectIT v0.1.5 — First-device login and SecureBind client staging
++
++**Status:** Go Master endpoint and live Python client protocol regression tested. Flutter Dart implementation is staged, NOT analyzer-compiled, not wired into LAN Messenger release, and not deployable with plaintext keys. No platform-OS hardware keystore or PIN verifier has been provided here.
++
++## Master endpoint addition
++
++Authenticated `GET /v1/devices/self` returns **only** `account_id`, `device_id`, `server_time`. It checks the existing Master-signed bearer token and the request-bound Ed25519 proof, replay nonce, active device state and account. Unauthenticated requests are denied. A previously revoked signer is denied. The returned internal `device_id` is REQUIRED by the original `ConnectIT-SecureBind-v1` approval canonical signing format. Original v0.1.4 API had no authenticated way for client to learn this ID, preventing implementation of its approval UI.
++
++## Dart staged adapter
++
++`lib/connectit/master_auth_client.dart` now implements real HTTP request shapes for: first device enrollment, client-side pin verification of the Master-issued Ed25519 JWT, second device binding start, trusted self lookup, pending approvals, explicit local-PIN-gated signed decision, and time-gated binding finalization. It refuses non-loopback HTTP, embeds no bootstrap admin passwords, performs no implicit OS keystore fallback, does not send a local PIN to Master, and follows no redirects.
++
++The implementer MUST supply `ConnectITSecureSigner` using OS-protected Ed25519 private key and installation secret storage. PIN verification must also be OS-protected and must never be replaced with a function that always returns true. HTTPS certificate validation and a **trusted out-of-band Master signing public key pin** are required; `/v1/public-key` is not a trust bootstrap by itself. Do not log credentials or tokens. A device association request should be shown in the UI and never automatically approved. The existing LAN-only app must remain independently usable.
++
++## Verification
++
++Linux Go Master `go test ./...`/`go vet ./...`; localhost real `tests/client_auth_flow.py` passes enrollment, pin-validated JWT, missing/bad auth, self lookup, second-device 409, pending list, early finalization fail, local approval, double approval fail, finalized second certificate, and revocation of original active device. **Four-hour countdown accelerated only by editing a temporary SQLite regression fixture**, not by an HTTP option, server policy or production bypass. Native Flutter analyzer/compile and OS-specific secure keystore/PIN flows remain unverified.
++
++## Important residual risks
++
++- Account passwords sent in request JSON **require HTTPS** in non-loopback deployments; a valid Master token does not substitute for HTTPS.
++- Signed user certificate renewal is currently manual `/v1/enroll` for existing unchanged device; no background refresh scheduling.
++- Master replay cache is in process memory, not a durable witness across restart.
++- Real SecureBind notifications, a trusted platform PIN verifier, public user directory, a five-hop privacy-preserving discovery protocol, and direct-only internet media transport still absent.
++- Distinguish user account ID (10 digits) from database internal device ID and local LAN peer ID; do not interchange them.
+diff --git a/ConnectIT/ConnectIT-Seed/docs/DEVICE_REPLAY_v0.1.6.md b/ConnectIT/ConnectIT-Seed/docs/DEVICE_REPLAY_v0.1.6.md
+new file mode 100644
+index 0000000..aaa85f1
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Seed/docs/DEVICE_REPLAY_v0.1.6.md
+@@ -0,0 +1,23 @@
++# ConnectIT v0.1.6 — Persistent device-request replay protection (development only)
++
++## Security delta
++The Master previously held signed HTTP device request nonces in process-local memory. A Master restart could accept the same captured signed request again while the request timestamp was still inside its 120-second validity window.
++
++v0.1.6 adds `device_request_nonces` in SQLite, storing only SHA-256 hashes of (`device_public_key`, 0x00, `nonce`) plus expiry (300 seconds). `admitDeviceNonce` performs cleanup, duplicate detection, the 50,000-row safety limit, and insertion inside ONE `BEGIN IMMEDIATE` transaction. A valid signature is mandatory before it is called. DB errors or missing schema fail closed (503), never falling back to memory. Duplicate signatures and concurrent requests fail with HTTP 409. This applies to authenticated device endpoints including `/v1/devices/self`, `/v1/bind/pending`, and `/v1/bind/decision`.
++
++## Backward compatibility
++The Master startup runs `migrateDeviceReplay()` for existing v0.1.5 databases; fresh `init` includes the same table and expiry index. The staged Dart HTTP client already sends a random 24-byte nonce for each signed request and needs no code change. Satellite source, binaries, federation wire format, node revocations, and the original LAN Messenger application are unchanged.
++
++## Verified locally
++- `go vet ./...`, `CGO_ENABLED=1 go test ./...` Master PASS.
++- Master process rebuilt as Linux x86-64 and exercised by existing `tests/client_auth_flow.py`: PASS.
++- `tests/device_replay_restart.py`: first signed proof 200, identical proof after stop/start 409, new proof 200. Migration from a simulated v0.1.5 schema (table absent): PASS; hashed-only DB rows checked.
++- 32 simultaneous signed nonce admissions: exactly one accepted, 31 rejected; expiry pruning: PASS.
++- Satellite `go vet ./...` and `CGO_ENABLED=0 go test ./...`: PASS (code unchanged).
++- `tests/node_revoke_live.py` and `tests/signed_mesh_e2e.py`: PASS; 201 signed opaque messages, one hop, retrieval after Master offline.
++- The combined Go race-test command exceeded a bounded execution time; this cycle **does not** assert the full race suite passed. No Flutter SDK is available; Flutter/Dart and physical OS credential store remains NOT verified.
++
++## Strict limitations
++A DB filesystem rollback or restored historical backup may restore older replay state; SQLite alone is NOT a trusted monotonic hardware witness. Multi-Master replication and external durable nonce consensus are not implemented. At the fixed 50,000-active-nonce capacity, new authenticated requests receive HTTP 503 until expiry cleanup frees space. No automatic node-key rotation, real-world WAN TLS tests, user notification push, OS PIN verifier, native ConnectIT APK/EXE, privacy directory or direct-only WebRTC calls yet.
++
++GitHub reorganization is in progress. **DO NOT** automatically apply this patch to an old repo, force-push, merge, retag, or overwrite LAN Messenger builds. This file is a code handoff for the future designated canonical ConnectIT source home; the v0.1.5 handoff remains its immediate baseline, ultimately depending on draft PR #234. Development NO-GO.
+diff --git a/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.5.json b/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.5.json
+new file mode 100644
+index 0000000..78550a0
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.5.json
+@@ -0,0 +1,29 @@
++{
++  "release": "ConnectIT v0.1.5 isolated-development checkpoint",
++  "github_mutations": "NONE; repository reorganization in progress",
++  "baseline_pr": "https://github.com/BlazingSystems/BlazingSystems-Experiments/pull/234",
++  "source_base_commit": "70982717496345287ce9f925ecd4a7af3f32eaa8",
++  "implemented": [
++    "Master: authenticated GET /v1/devices/self",
++    "client staging: first device enrollment and Master key-pinned JWT verification",
++    "client staging: SecureBind begin/pending/explicit local-gated decision/finalize"
++  ],
++  "verified": [
++    "Master go vet and unit tests",
++    "Seed go vet and unit tests (unchanged v0.1.4)",
++    "Master client_auth_flow.py live first/second-device enrollment, negative tests, revocation",
++    "v0.1.4 signed two-seed relay smoke, 201 messages",
++    "v0.1.4 node revocation live smoke",
++    "temporary reference two-account E2E dummy"
++  ],
++  "unverified": [
++    "Flutter/Dart analyzer and native APK/Windows builds",
++    "OS-backed private-key and PIN storage",
++    "physical WAN TLS and end-to-end UI",
++    "automatic authenticated directory"
++  ],
++  "notes": [
++    "four-hour SecureBind countdown accelerated only in disposable SQLite regression fixture",
++    "existing original LAN Messenger application and PR #235 untouched"
++  ]
++}
+diff --git a/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.6.json b/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.6.json
+new file mode 100644
+index 0000000..449e197
+--- /dev/null
++++ b/ConnectIT/ConnectIT-Seed/docs/VERIFICATION_v0.1.6.json
+@@ -0,0 +1,37 @@
++{
++  "checkpoint": "ConnectIT-v0.1.6-dev",
++  "github_mutations": false,
++  "master_source_changed": [
++    "api.go",
++    "main.go",
++    "schema.sql",
++    "device_replay.go",
++    "device_replay_test.go",
++    "tests/device_replay_restart.py"
++  ],
++  "seed_code_changed": false,
++  "flutter_source_changed": false,
++  "verified": {
++    "Master_go_vet": "PASS",
++    "Master_go_unit": "PASS",
++    "Master_linux_amd64_build": "PASS",
++    "Master_SecureBind_integration": "PASS",
++    "Durable_signed_request_replay_after_restart": "PASS (HTTP 409)",
++    "Fresh_proof_after_restart": "PASS (HTTP 200)",
++    "Legacy_v015_DB_schema_migration": "PASS",
++    "Concurrent_nonce_32_callers": "PASS (1 admitted 31 rejected)",
++    "Seed_go_vet_unit": "PASS",
++    "Node_revocation_live": "PASS",
++    "Signed_mesh_201_messages_and_Master_offline": "PASS"
++  },
++  "not_verified": [
++    "Go full -race suite (bounded run timed out)",
++    "Flutter/Dart tests (SDK unavailable)",
++    "physical WAN TLS, OS key storage, PIN verification"
++  ],
++  "limitations": [
++    "SQLite DB rollback is not a monotonic witness",
++    "50k active request nonce cap",
++    "No LAN Messenger production changes"
++  ]
++}
