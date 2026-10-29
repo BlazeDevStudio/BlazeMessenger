@@ -12,8 +12,10 @@ not a redrawn approximation. Original file fingerprints are covered by tests.
 The Flutter app bar **historically** used ConnectIT artwork. A separate V3
 BlazeDevStudio parent-brand integration now anchors the **Flutter app header**
 to the verified sculpted blue B / ruby HUD, while the original ConnectIT
-assets remain immutable and are still used in Windows tray/EXE and Android
-launcher/adaptive icons. No native launcher or signing change is claimed.
+assets remain immutable and were originally used by the Windows tray/EXE and
+Android launcher/adaptive icons. A separate stacked V3 native-icon draft now
+renders these platform assets from the **exact verified public V3 SVG**. No
+package identifier or signing identity is changed. No native release is claimed.
 The old CI-generated Windows pixel bubble remains retired.
 
 This is a logo-only integration. LAN Messenger retains its local identity,

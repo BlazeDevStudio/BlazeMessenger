@@ -33,6 +33,10 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix tool/native-icons --no-package-lock
       - run: python3 tool/generate_assets.py
       - run: flutter create --platforms=android --project-name lan_messenger .
       - run: python3 tool/prepare_platforms.py
@@ -214,6 +218,10 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix tool/native-icons --no-package-lock
       - run: python tool/generate_assets.py
       - run: flutter create --platforms=windows --project-name lan_messenger .
       - run: python tool/prepare_platforms.py
