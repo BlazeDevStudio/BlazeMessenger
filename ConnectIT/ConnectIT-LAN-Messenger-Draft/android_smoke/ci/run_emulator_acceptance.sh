@@ -37,12 +37,18 @@ flutter test integration_test/connectit_keystore_android_test.dart \
   -d emulator-5554 --reporter expanded
 
 # First app invocation: explicit enrollment with Android-generated key.
+# Flutter 3.47+ uninstalls its test APK by default, which deletes the
+# Android Keystore wrapping material and encrypted secure-store contents.
+# Preserve this exact test APK/data after enrollment for the next invocation.
 flutter test integration_test/connectit_emulator_enroll_test.dart \
-  -d emulator-5554 --reporter expanded \
+  -d emulator-5554 --reporter expanded --no-uninstall \
   --dart-define="CONNECTIT_TEST_ACCOUNT=$CONNECTIT_TEST_ACCOUNT" \
   --dart-define="CONNECTIT_TEST_PASSWORD=$CONNECTIT_TEST_PASSWORD" \
   --dart-define="CONNECTIT_TEST_MASTER_PIN=$CONNECTIT_TEST_MASTER_PIN"
 
+# The app MUST still be installed. Do not restore credentials from a file,
+# generate a new key, or delete app state to make returning login succeed.
+adb shell pm path com.blazedevstudio.connectit_android_smoke > /dev/null
 # Separate app process/test invocation: original persisted device only.
 adb shell am force-stop com.blazedevstudio.connectit_android_smoke || true
 flutter test integration_test/connectit_emulator_returning_test.dart \
