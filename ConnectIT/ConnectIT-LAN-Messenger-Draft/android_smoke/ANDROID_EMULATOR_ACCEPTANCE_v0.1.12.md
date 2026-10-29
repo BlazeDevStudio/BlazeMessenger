@@ -19,3 +19,19 @@ All credentials, storage and certificates are ephemeral CI fixtures; no producti
 - No Windows build, WAN calling/video, LAN Messenger runtime edit, production APK signing, deployment, release or merge.
 
 **Status:** draft NO-GO pending exact-head emulator results and later physical-device verification.
+
+## Emulator test-runner data preservation
+
+A prior exact-head Android emulator run (**40949642376**) passed native
+secure-storage tests and enrolled the first device against a real disposable
+Master, but the next Flutter invocation found the app test marker missing.
+Flutter's Android integration-test command automatically uninstalls the tested
+app after completion by default, removing its associated data. The enrolled
+integration invocation now uses `--no-uninstall`; the test harness confirms
+the package is still installed before the separate returning-auth run. This
+preserves encrypted storage without exporting, copying, or reseeding private
+keys. A real failed returning-login test still fails the gate.
+
+This runner correction is *not* a production keystore fix or physical hardware
+acceptance. The next exact-head run must independently prove that the original
+public key and Master-issued device ID survive the separate app invocation.
