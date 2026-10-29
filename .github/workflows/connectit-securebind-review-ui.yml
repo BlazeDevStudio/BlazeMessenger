@@ -26,4 +26,6 @@ jobs:
           flutter --version
           flutter pub get
           flutter analyze
-          flutter test --reporter expanded
+          flutter test test/connectit_native_signer_test.dart --reporter expanded
+          flutter test test/connectit_local_pin_gate_test.dart --reporter expanded
+          timeout 240s flutter test test/connectit_securebind_page_test.dart --reporter expanded
