@@ -96,7 +96,9 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
         setState(() => _message = 'Request could not complete (${error.runtimeType}).');
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -138,9 +140,9 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
     final own = await _auth!.ownDevice(session, _signer!);
     if (mounted) {
       setState(() {
-      _session = session;
-      _own = own;
-      _message = 'First device verified. You can now review binding requests.';
+        _session = session;
+        _own = own;
+        _message = 'First device verified. You can now review binding requests.';
       });
     }
   });
@@ -158,9 +160,9 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
     );
     if (mounted) {
       setState(() {
-      _bindingId.text = challenge.bindingId;
-      _message = 'Request submitted. An existing trusted device must '
-          'approve at the Master-defined intervals. Do not bypass the timer.';
+        _bindingId.text = challenge.bindingId;
+        _message = 'Request submitted. An existing trusted device must '
+            'approve at the Master-defined intervals. Do not bypass the timer.';
       });
     }
   });
@@ -177,10 +179,11 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       signer: _signer!,
     );
     final own = await _auth!.ownDevice(session, _signer!);
-    if (mounted) setState(() {
-      _session = session;
-      _own = own;
-      _message = 'Binding finalized and signed device identity verified.';
+    if (mounted) {
+      setState(() {
+        _session = session;
+        _own = own;
+        _message = 'Binding finalized and signed device identity verified.';
       });
     }
   });
