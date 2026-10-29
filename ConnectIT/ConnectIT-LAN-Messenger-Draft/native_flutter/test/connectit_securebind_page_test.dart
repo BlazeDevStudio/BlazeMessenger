@@ -105,6 +105,17 @@ void main() {
     await tester.tap(find.byKey(const Key('securebind-consent')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('securebind-confirm')));
+    await tester.pump();
+    // PBKDF2 uses real asynchronous crypto, not the widget fake clock.
+    await tester.runAsync(() async {
+      for (var n = 0; n < 300; n++) {
+        if (storage.values.containsKey(ConnectITLocalPinGate.recordKey)) {
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      throw StateError('Timed out waiting for PIN setup');
+    });
     await tester.pumpAndSettle();
     expect(storage.values[ConnectITLocalPinGate.recordKey], isNotNull);
     expect(find.text('Local PIN configured'), findsOneWidget);
@@ -115,8 +126,10 @@ void main() {
       (tester) async {
     final storage = _Storage();
     final gate = _gate(storage);
-    await gate.configure(
-      pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    await tester.runAsync(() async {
+      await gate.configure(
+        pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    });
     final gateway = _Gateway(_list());
     await _screen(tester, gateway, gate);
     await tester.ensureVisible(find.byKey(
@@ -137,8 +150,10 @@ void main() {
       (tester) async {
     final storage = _Storage();
     final gate = _gate(storage);
-    await gate.configure(
-      pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    await tester.runAsync(() async {
+      await gate.configure(
+        pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    });
     final gateway = _Gateway(_list());
     gateway.next = _list(const ConnectITPendingApproval(
       'request-123', 'DIFFERENT_KEY', 'challenge-string',
@@ -166,8 +181,10 @@ void main() {
       (tester) async {
     final storage = _Storage();
     final gate = _gate(storage);
-    await gate.configure(
-      pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    await tester.runAsync(() async {
+      await gate.configure(
+        pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    });
     final gateway = _Gateway(_list());
     await _screen(tester, gateway, gate);
     await tester.ensureVisible(find.byKey(
@@ -192,8 +209,10 @@ void main() {
       (tester) async {
     final storage = _Storage();
     final gate = _gate(storage);
-    await gate.configure(
-      pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    await tester.runAsync(() async {
+      await gate.configure(
+        pin: '82740619', confirmation: '82740619', userConfirmed: true);
+    });
     final expired = const ConnectITPendingApproval(
       'request-123', 'BASE64_PUBLIC_KEY_TEST', 'challenge-string',
       1000, 2900, 'pending',
