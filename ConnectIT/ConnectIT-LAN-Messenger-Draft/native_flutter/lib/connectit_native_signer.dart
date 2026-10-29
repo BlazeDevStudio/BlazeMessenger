@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -55,6 +56,10 @@ final class ConnectITNativeCredentialStore {
   final ConnectITSecretStore secrets;
   Future<ConnectITPlatformSigner>? _pending;
 
+  // Serializes first-enrollment reads/writes across independent instances in
+  // one Dart isolate. Native cross-process atomicity is NOT guaranteed.
+  static Future<void> _creationTail = Future<void>.value();
+
   ConnectITNativeCredentialStore(this.secrets);
 
   /// Repeated calls on this instance share a single create/read operation.
@@ -62,6 +67,18 @@ final class ConnectITNativeCredentialStore {
       _pending ??= _loadOrCreate();
 
   Future<ConnectITPlatformSigner> _loadOrCreate() async {
+    final preceding = _creationTail;
+    final completed = Completer<void>();
+    _creationTail = completed.future;
+    await preceding;
+    try {
+      return await _loadOrCreateLocked();
+    } finally {
+      completed.complete();
+    }
+  }
+
+  Future<ConnectITPlatformSigner> _loadOrCreateLocked() async {
     final existing = await secrets.read(recordKey);
     if (existing != null) {
       return _decode(existing); // Never silently reset a damaged identity.
