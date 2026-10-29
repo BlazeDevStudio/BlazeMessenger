@@ -1,3 +1,4 @@
 # Preserve exact bytes of owner-supplied ConnectIT artwork on Windows and Linux.
 # In particular, SVG line endings must not be rewritten by core.autocrlf.
 assets/branding/connectit/* -text
+assets/branding/blazedevstudio-v3/*.svg -text
