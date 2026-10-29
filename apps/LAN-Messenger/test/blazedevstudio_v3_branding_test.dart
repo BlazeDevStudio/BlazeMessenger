@@ -22,7 +22,7 @@ void main() {
     // Assert byte-for-byte upstream Git blob fingerprints, not just SVG labels.
     String gitBlobSha(String path) {
       final bytes = File(path).readAsBytesSync();
-      final prefix = utf8.encode('blob ${bytes.length}\\u0000');
+      final prefix = utf8.encode('blob ${bytes.length}\u0000');
       return sha1.convert([...prefix, ...bytes]).toString();
     }
     expect(gitBlobSha(BlazeIdentity.markAsset),
