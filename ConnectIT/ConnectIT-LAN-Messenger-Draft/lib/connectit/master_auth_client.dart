@@ -201,6 +201,33 @@ class ConnectITMasterAuthClient {
     return _verifiedCertificate(accountId, signer, data);
   }
 
+  /// Reissues a signed certificate ONLY to an already trusted device. The
+  /// caller MUST obtain signer with loadExisting(), never loadOrCreate().
+  /// No SecureBind fallback, no enrollment and no new key on a 403.
+  Future<ConnectITMasterSession> authenticateReturningDevice({
+    required String accountId,
+    required String password,
+    required ConnectITSecureSigner signer,
+  }) async {
+    if (!_validAccount(accountId)) throw ArgumentError('Invalid 10-digit account');
+    if (password.isEmpty) throw ArgumentError('Account password required');
+    final nonce = _nonce();
+    final installationId = signer.installationId;
+    final result = await _call('/v1/auth/returning', 'POST', data: {
+      'username': accountId,
+      'password': password,
+      'device_public_key_b64': signer.publicKeyBase64,
+      'installation_id': installationId,
+      'nonce': nonce,
+      'proof_signature_b64': await signer.signBase64Url(
+          'ConnectIT-returning-auth-v1\n$accountId\n$nonce\n$installationId'),
+    });
+    if (result['status'] != 'returning_existing_device') {
+      throw const FormatException('Unexpected returning-device result');
+    }
+    return _verifiedCertificate(accountId, signer, result);
+  }
+
   Future<ConnectITBindChallenge> beginDeviceBinding({required String accountId,
       required String password, required ConnectITSecureSigner signer,
       required bool userConfirmed}) async {
