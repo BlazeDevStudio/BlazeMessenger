@@ -205,10 +205,7 @@ func (a *api) returningDevice(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	canonical := "ConnectIT-returning-auth-v1
-" + in.Username + "
-" + in.Nonce + "
-" + in.InstallationID
+	canonical := "ConnectIT-returning-auth-v1\n" + in.Username + "\n" + in.Nonce + "\n" + in.InstallationID
 	if !validID(in.Username) || !validPub(in.DevicePublicKey) ||
 		!validInstall(in.InstallationID) || !validNonce(in.Nonce) ||
 		!signedProof(in.DevicePublicKey, canonical, in.Pop) {
