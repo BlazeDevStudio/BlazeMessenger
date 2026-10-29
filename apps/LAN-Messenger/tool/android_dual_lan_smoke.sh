@@ -15,14 +15,26 @@ AVD_MANAGER="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/avdmana
 if [[ ! -x "$AVD_MANAGER" ]]; then AVD_MANAGER="$(command -v avdmanager)"; fi
 if [[ ! -x "$AVD_MANAGER" ]]; then echo "avdmanager unavailable"; exit 1; fi
 echo no | "$AVD_MANAGER" create avd -n lan_peer2 -k 'system-images;android-35;google_apis;x86_64' --device pixel_2 --force
+# Diagnostic-only host pressure baseline. Prior hosted emulator 37.2.13
+# instances each defaulted to 2560 MB and the second segfaulted during tests.
+# Bound both emulators to 2048 MB, a documented supported Android flag;
+# retain camera/audio/WebRTC and all two-sided UI acceptance assertions.
+{ echo 'Host available memory before dual-emulator boot:'; free -m || true; } >"$OUT/runner-memory-before-dual.txt"
 "$EMULATOR" -avd lan_peer2 -port 5556 -no-window -gpu swiftshader_indirect \
-  -no-snapshot -no-boot-anim -camera-front emulated >"$OUT/emulator-peer2.log" 2>&1 &
+  -no-snapshot -no-boot-anim -camera-front emulated -memory 2048 >"$OUT/emulator-peer2.log" 2>&1 &
 SECOND_PID=$!
 cleanup() {
   kill "$SECOND_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
 for attempt in $(seq 1 90); do
+  # A crashed second emulator cannot establish a LAN call. Fail with its
+  # native log instead of spending the full polling window on dead ADB.
+  if ! kill -0 "$SECOND_PID" 2>/dev/null; then
+    echo "FAIL: second native Android emulator exited before boot" >&2
+    tail -n 100 "$OUT/emulator-peer2.log" >&2 || true
+    exit 1
+  fi
   completed="$(adb -s emulator-5556 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
   [[ "$completed" == "1" ]] && break
   sleep 3
