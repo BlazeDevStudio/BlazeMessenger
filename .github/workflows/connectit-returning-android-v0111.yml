@@ -1,0 +1,108 @@
+name: ConnectIT v0.1.11 returning-device login + Android build (DRAFT)
+on:
+  push:
+    branches: [feature/connectit-returning-device-auth-v0111-20261030]
+    paths:
+      - '.github/workflows/connectit-returning-android-v0111.yml'
+      - 'ConnectIT/ConnectIT-Master-Seed/**'
+      - 'ConnectIT/ConnectIT-LAN-Messenger-Draft/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  returning-master-and-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+      - name: Master returning-auth regression on REAL server
+        working-directory: ConnectIT/ConnectIT-Master-Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsqlite3-dev
+          python3 -m pip install --quiet --break-system-packages cryptography
+          CGO_ENABLED=1 go test ./... -count=1
+          CGO_ENABLED=1 go vet ./...
+          mkdir -p bin
+          CGO_ENABLED=1 go build -o bin/connectit-master .
+          python3 tests/returning_device_live.py
+          python3 tests/client_auth_flow.py
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Source-brand fingerprints and clean SVG verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke/assets/brand
+          printf '%s\n' \
+            '55771df5907b913e3ae00221991237ab29d4a41679f492bbb43a9ecc607e9afd  main-plain.svg' \
+            '75e4375e0694d366163eb46565f14d2bdbcab1d070e96bf6e7ca797e68c6c559  sublogo-network.svg' | sha256sum -c -
+          if grep -Eiq '<image|base64,' main-plain.svg sublogo-network.svg; then exit 1; fi
+      - name: Native signer and SecureBind tests
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test --reporter expanded
+      - name: Assemble independent Android test host
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=ConnectIT/ConnectIT-LAN-Messenger-Draft
+          SRC="$ROOT/android_smoke"
+          OUT="$ROOT/android_smoke_build"
+          flutter create --platforms=android --project-name connectit_android_smoke --org com.blazedevstudio "$OUT"
+          cp "$SRC/pubspec.yaml" "$OUT/pubspec.yaml"
+          cp "$SRC/lib/main.dart" "$OUT/lib/main.dart"
+          rm -rf "$OUT/test"
+          mkdir -p "$OUT/test" "$OUT/assets/brand"
+          cp "$SRC/test/"*.dart "$OUT/test/"
+          cp "$SRC/assets/brand/"*.svg "$OUT/assets/brand/"
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build/android/app/src/main/AndroidManifest.xml')
+          raw=path.read_text()
+          raw=raw.replace('<application','<uses-permission android:name="android.permission.INTERNET" />\n    <application',1)
+          path.write_text(raw)
+          PY
+          (cd "$OUT" && flutter pub get)
+      - name: Preserve native brand geometry in launcher resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --break-system-packages -q cairosvg
+          python3 - <<'PY'
+          from pathlib import Path
+          import cairosvg
+          base=Path('ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build')
+          svg=base/'assets/brand/main-plain.svg'
+          for density,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
+              target=base/'android/app/src/main/res'/('mipmap-'+density)/'ic_launcher.png'
+              target.parent.mkdir(parents=True,exist_ok=True)
+              cairosvg.svg2png(url=str(svg),write_to=str(target),output_width=size,output_height=size)
+          PY
+      - name: Android widget tests and debug APK
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build
+        run: |
+          set -euo pipefail
+          flutter analyze
+          timeout 300s flutter test --reporter expanded
+          flutter build apk --debug
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connectit-v0111-returning-auth-android-debug-apk-exact-head
+          path: ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
