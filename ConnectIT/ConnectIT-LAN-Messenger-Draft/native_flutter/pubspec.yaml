@@ -1,0 +1,19 @@
+name: connectit_native_credentials
+description: Isolated Android/Windows native credential adapter; NOT the LAN Messenger runtime.
+publish_to: none
+version: 0.1.7-dev
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  connectit_client_staging:
+    path: ..
+  cryptography: ^2.9.0
+  flutter_secure_storage: ^11.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
