@@ -1,0 +1,26 @@
+name: connectit_android_smoke
+description: Standalone ConnectIT Master authentication Android acceptance app; never production.
+publish_to: none
+version: 0.1.10+1
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  connectit_client_staging:
+    path: ..
+  connectit_native_credentials:
+    path: ../native_flutter
+  flutter_svg: ^2.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand/main-plain.svg
+    - assets/brand/sublogo-network.svg
