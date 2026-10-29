@@ -51,5 +51,23 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.textContaining('FormatException'), findsOneWidget);
+  });  testWidgets('returning login is an explicit independent action',
+      (tester) async {
+    await tester.pumpWidget(const ConnectITAcceptanceApp());
+    await tester.pump();
+    final returning = find.byKey(const Key('returning-device'));
+    expect(returning, findsOneWidget);
+    expect(find.text('Return on this device'), findsOneWidget);
+    final button = tester.widget<FilledButton>(returning);
+    expect(button.onPressed, isNotNull);
+    // With invalid account format, the client must fail before reading the
+    // native keystore or attempting network enrollment.
+    await tester.tap(returning);
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('FormatException'), findsOneWidget);
+    expect(find.textContaining('Existing trusted device verified'), findsNothing);
   });
+
+
 }
