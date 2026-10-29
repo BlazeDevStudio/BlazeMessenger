@@ -46,12 +46,16 @@ void main() {
     await tester.pumpWidget(const ConnectITAcceptanceApp());
     await tester.pump();
     final enroll = find.byKey(const Key('enroll-first-device'));
-    await tester.ensureVisible(enroll);
+    await tester.scrollUntilVisible(enroll, 250,
+        scrollable: find.byType(Scrollable).first);
     await tester.tap(enroll);
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('auth-status')), 250,
+        scrollable: find.byType(Scrollable).first);
     expect(find.textContaining('FormatException'), findsOneWidget);
-  });  testWidgets('returning login is an explicit independent action',
+  });
+
+  testWidgets('returning login is an explicit independent action',
       (tester) async {
     await tester.pumpWidget(const ConnectITAcceptanceApp());
     await tester.pump();
@@ -62,9 +66,11 @@ void main() {
     expect(button.onPressed, isNotNull);
     // With invalid account format, the client must fail before reading the
     // native keystore or attempting network enrollment.
+    await tester.ensureVisible(returning);
     await tester.tap(returning);
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('auth-status')), 250,
+        scrollable: find.byType(Scrollable).first);
     expect(find.textContaining('FormatException'), findsOneWidget);
     expect(find.textContaining('Existing trusted device verified'), findsNothing);
   });
