@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,14 +19,21 @@ void main() {
     expect(BlazeIdentity.navy, const Color(0xFF0B1427));
     expect(BlazeIdentity.blue, const Color(0xFF1387FE));
     expect(BlazeIdentity.ruby, const Color(0xFFFA2E58));
-    // The approved source files are kept exact, not redrawn or approximated.
-    expect(sha256.convert(File(BlazeIdentity.markAsset).readAsBytesSync())
-        .toString().length, 64);
+    // Assert byte-for-byte upstream Git blob fingerprints, not just SVG labels.
+    String gitBlobSha(String path) {
+      final bytes = File(path).readAsBytesSync();
+      final prefix = utf8.encode('blob ${bytes.length}\\u0000');
+      return sha1.convert([...prefix, ...bytes]).toString();
+    }
+    expect(gitBlobSha(BlazeIdentity.markAsset),
+        'f2cb5451b701aed324cba7169883d073f2eee65e');
+    expect(gitBlobSha(BlazeIdentity.networkAsset),
+        '70d265d19e350bf4414fca0f034ab434c488ba5a');
   });
 
   testWidgets('header brand renders from local approved SVG without network',
       (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: Center(
         child: SizedBox(width: 52, height: 52,
           child: SvgPicture.asset(BlazeIdentity.markAsset)),
