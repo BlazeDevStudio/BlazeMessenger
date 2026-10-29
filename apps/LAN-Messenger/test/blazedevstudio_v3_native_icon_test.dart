@@ -27,7 +27,8 @@ void main() {
 
   test('native icon SVG is the exact upstream V3 Git blob', () {
     final file = File('assets/branding/blazedevstudio-v3/main-hud.svg');
-    final bytes = file.readAsBytesSync();
+    final bytes = utf8.encode(
+        file.readAsStringSync().replaceAll('\r\n', '\n'));
     final encoded = <int>[...utf8.encode('blob ${bytes.length}\u0000'),...bytes];
     expect(sha1.convert(encoded).toString(),
         '927f2310166fca2dc30b05c0ff49436db6abb238');

@@ -21,7 +21,9 @@ void main() {
     expect(BlazeIdentity.ruby, const Color(0xFFFA2E58));
     // Assert byte-for-byte upstream Git blob fingerprints, not just SVG labels.
     String gitBlobSha(String path) {
-      final bytes = File(path).readAsBytesSync();
+      // Git tracks LF; a CI checkout can materialize the same SVG as CRLF.
+      final canonical = File(path).readAsStringSync().replaceAll('\r\n', '\n');
+      final bytes = utf8.encode(canonical);
       final prefix = utf8.encode('blob ${bytes.length}\u0000');
       return sha1.convert([...prefix, ...bytes]).toString();
     }
