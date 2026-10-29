@@ -86,15 +86,15 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
     try {
       await action();
     } on ConnectITMasterException catch (error) {
-      if (mounted) setState(() =>
-          _message = 'Master denied request (' +
-              error.statusCode.toString() + ').');
+      if (mounted) {
+        setState(() => _message = 'Master denied request (${error.statusCode}).');
+      }
     } catch (error) {
       // Never display raw exception text: URLs, keys, and secrets can appear
       // in HTTP/plugin exceptions. Do not print stack traces or passwords.
-      if (mounted) setState(() =>
-          _message = 'Request could not complete (' +
-              error.runtimeType.toString() + ').');
+      if (mounted) {
+        setState(() => _message = 'Request could not complete (${error.runtimeType}).');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -136,11 +136,13 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       signer: _signer!,
     );
     final own = await _auth!.ownDevice(session, _signer!);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _session = session;
       _own = own;
       _message = 'First device verified. You can now review binding requests.';
-    });
+      });
+    }
   });
 
   Future<void> _startBinding() => _perform(() async {
@@ -154,11 +156,13 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       signer: _signer!,
       userConfirmed: _bindingConsent,
     );
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _bindingId.text = challenge.bindingId;
-      _message = 'Request submitted. An existing trusted device must ' +
+      _message = 'Request submitted. An existing trusted device must '
           'approve at the Master-defined intervals. Do not bypass the timer.';
-    });
+      });
+    }
   });
 
   Future<void> _finalize() => _perform(() async {
@@ -177,7 +181,8 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       _session = session;
       _own = own;
       _message = 'Binding finalized and signed device identity verified.';
-    });
+      });
+    }
   });
 
   void _openApprovals() {
@@ -316,8 +321,8 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
           const SizedBox(height: 16),
           Text(_message, key: const Key('auth-status')),
           const SizedBox(height: 24),
-          const Text('No session recovery after app restart. ' +
-              'No production credentials or device keys should be used. ' +
+          const Text('No session recovery after app restart. '
+              'No production credentials or device keys should be used. '
               'Calls, media and LAN Messenger are unchanged.',
               style: TextStyle(color: muted, fontSize: 12)),
         ],
