@@ -91,7 +91,7 @@ final class ConnectITNativeCredentialStore {
       if (saved == null) {
         throw StateError('No existing ConnectIT device identity; use SecureBind');
       }
-      return _decode(saved);
+      return await _decode(saved);
     } finally {
       completed.complete();
     }
