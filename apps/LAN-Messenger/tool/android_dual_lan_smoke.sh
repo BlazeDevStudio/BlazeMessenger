@@ -144,6 +144,50 @@ if [[ "$success" == 1 ]]; then
   echo "PASS: both Android apps discovered a reachable online peer on shared cloud Wi-Fi."
   echo "Android two-emulator LAN discovery: PASS. This is not a live call test." >>"$GITHUB_STEP_SUMMARY"
 else
+  # Diagnostic-only: hosted virtual Wi-Fi has occasionally assigned distinct
+  # IPs yet delivered neither app's multicast/broadcast announcement.
+  # Inspect both guest routes/link counters and unicast ICMP connectivity.
+  # ICMP may be filtered: it is NEVER a discovery success condition and
+  # no app state, network policy or devices are modified.
+  for serial in emulator-5554 emulator-5556; do
+    if [[ "$serial" == "emulator-5554" ]]; then
+      peer_serial="emulator-5556"
+    else
+      peer_serial="emulator-5554"
+    fi
+    peer_ip="$(python3 - "$OUT/$peer_serial-wifi.txt" <<'PYDIAG'
+import re, sys
+try:
+    match = re.search(r'\binet\s+(\d+\.\d+\.\d+\.\d+)/',
+                      open(sys.argv[1], encoding='utf8').read())
+    print(match.group(1) if match else '')
+except OSError:
+    print('')
+PYDIAG
+)"
+    diag="$OUT/$serial-discovery-network-diagnostics.txt"
+    {
+      echo "Source: disposable CI Android emulator $serial"
+      echo "Peer emulator: $peer_serial"
+      echo "Peer IPv4: $peer_ip"
+      echo "Diagnostic only; ICMP response does not prove UDP delivery"
+      echo "=== Wi-Fi interface IPv4 ==="
+      adb -s "$serial" shell ip -4 addr show wlan0 || true
+      echo "=== IPv4 routes ==="
+      adb -s "$serial" shell ip -4 route show || true
+      echo "=== Wi-Fi link counters ==="
+      adb -s "$serial" shell ip -s link show wlan0 || true
+      echo "=== UDP listeners (if system tool supports it) ==="
+      adb -s "$serial" shell ss -lun || true
+      echo "=== ICMP to peer, informative only (may be blocked) ==="
+      if [[ "$peer_ip" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+        timeout 8 adb -s "$serial" shell ping -c 2 -W 2 "$peer_ip" || true
+      else
+        echo "No valid peer IPv4 address for diagnostic"
+      fi
+    } >"$diag" 2>&1
+    echo "$serial network diagnostics retained: $diag"
+  done
   echo "FAIL: both Android apps did not confirm a peer row in accessible UI."
   echo "Review saved hierarchy XML, screenshots, and logcat evidence for discovery or UI/accessibility limitations."
   echo "Android two-emulator LAN discovery: NOT CONFIRMED." >>"$GITHUB_STEP_SUMMARY"
