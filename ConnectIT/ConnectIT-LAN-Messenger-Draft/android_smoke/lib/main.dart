@@ -102,7 +102,7 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
     }
   }
 
-  Future<void> _prepareIdentityAndClient() async {
+  Future<void> _prepareIdentityAndClient({bool existingOnly = false}) async {
     if (!RegExp(r'^[0-9]{10}$').hasMatch(_account.text.trim())) {
       throw const FormatException('Invalid ten-digit account');
     }
@@ -119,8 +119,13 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       pinnedMasterEd25519PublicKey: Uint8List.fromList(pin),
     );
     try {
-      final signer = _signer ?? await ConnectITNativeCredentialStore(
-          _secureStore).loadOrCreate();
+      final store = ConnectITNativeCredentialStore(_secureStore);
+      final signer = _signer ?? await (existingOnly
+          ? store.loadExisting()
+          : store.loadOrCreate());
+      // A changed server/account must never inherit an old verified session.
+      _session = null;
+      _own = null;
       _signer = signer;
       _auth?.close();
       _auth = client;
@@ -129,6 +134,26 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
       rethrow;
     }
   }
+
+  /// Uses the already-provisioned private key. Missing local identity,
+  /// revoked server identity or wrong installation token is a hard rejection;
+  /// never make an enrollment/SecureBind request without explicit user action.
+  Future<void> _returning() => _perform(() async {
+    await _prepareIdentityAndClient(existingOnly: true);
+    final session = await _auth!.authenticateReturningDevice(
+      accountId: _account.text.trim(),
+      password: _password.text,
+      signer: _signer!,
+    );
+    final own = await _auth!.ownDevice(session, _signer!);
+    if (mounted) {
+      setState(() {
+        _session = session;
+        _own = own;
+        _message = 'Existing trusted device verified. Review is available.';
+      });
+    }
+  });
 
   Future<void> _enroll() => _perform(() async {
     await _prepareIdentityAndClient();
@@ -285,6 +310,12 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
           ),
           const SizedBox(height: 16),
           FilledButton(
+            key: const Key('returning-device'),
+            onPressed: _busy ? null : _returning,
+            child: const Text('Return on this device'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
             key: const Key('enroll-first-device'),
             onPressed: _busy ? null : _enroll,
             child: const Text('Enroll first device'),
@@ -324,7 +355,7 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
           const SizedBox(height: 16),
           Text(_message, key: const Key('auth-status')),
           const SizedBox(height: 24),
-          const Text('No session recovery after app restart. '
+          const Text('Returning devices must sign in again after restart. '
               'No production credentials or device keys should be used. '
               'Calls, media and LAN Messenger are unchanged.',
               style: TextStyle(color: muted, fontSize: 12)),
