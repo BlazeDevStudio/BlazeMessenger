@@ -30,7 +30,6 @@ type api struct {
 	hmacKey  []byte
 	mu       sync.Mutex
 	attempts map[string]rate
-	nonces   map[string]int64
 }
 
 func (a *api) limit(r *http.Request) bool {
@@ -80,6 +79,7 @@ func (a *api) routes(mux *http.ServeMux) {
 		}
 		reply(w, 200, map[string]string{"ed25519_b64": b64(a.priv.Public().(ed25519.PublicKey))})
 	})
+	mux.HandleFunc("/v1/devices/self", a.deviceSelf)
 	mux.HandleFunc("/v1/enroll", a.enroll)
 	mux.HandleFunc("/v1/bind/start", a.bindStart)
 	mux.HandleFunc("/v1/bind/pending", a.pending)
@@ -181,6 +181,26 @@ func (a *api) enroll(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, 200, map[string]any{"device_certificate": issue(a.priv, in.Username, in.DevicePublicKey, 7*86400), "expires_in": 7 * 86400, "protocol": "blaze-seed-v1-compatible"})
 }
+
+// deviceSelf reveals only the authenticated device ID and its own account ID.
+// SecureBind decision signatures require this stable DB-issued ID. Never expose
+// other devices, installation tokens, password hashes, or private keys here.
+func (a *api) deviceSelf(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		failure(w, http.StatusMethodNotAllowed, "GET required")
+		return
+	}
+	accountID, deviceID, ok := a.trusted(w, r)
+	if !ok {
+		return
+	}
+	reply(w, http.StatusOK, map[string]any{
+		"account_id":  accountID,
+		"device_id":   deviceID,
+		"server_time": time.Now().Unix(),
+	})
+}
+
 func (a *api) bindStart(w http.ResponseWriter, r *http.Request) {
 	if !a.guard(w, r) {
 		return
@@ -295,30 +315,18 @@ func (a *api) trusted(w http.ResponseWriter, r *http.Request) (string, string, b
 		failure(w, 401, "invalid device request signature")
 		return "", "", false
 	}
-	a.mu.Lock()
-	if a.nonces == nil {
-		a.nonces = map[string]int64{}
-	}
-	nk := claims.Key + ":" + nonce
-	if a.nonces[nk] > now {
-		a.mu.Unlock()
+	// Persist nonce admission atomically. A Master restart must not reset
+	// replay protection while an old signed HTTP request remains in-window.
+	// Fail closed on SQLite errors; never fall back to process-local memory.
+	switch a.admitDeviceNonce(claims.Key, nonce, now) {
+	case nonceAccepted:
+	case nonceReplay:
 		failure(w, 409, "replayed request")
 		return "", "", false
-	}
-	if len(a.nonces) > 10000 {
-		for k, t := range a.nonces {
-			if t < now {
-				delete(a.nonces, k)
-			}
-		}
-	}
-	if len(a.nonces) > 50000 {
-		a.mu.Unlock()
-		failure(w, 503, "replay cache full")
+	default:
+		failure(w, 503, "device replay protection unavailable")
 		return "", "", false
 	}
-	a.nonces[nk] = now + 300
-	a.mu.Unlock()
 	var drows []map[string]string
 	drows, e = a.db.run("SELECT id,state FROM devices WHERE account_id=? AND public_key=?", claims.Sub, claims.Key)
 	if e != nil || len(drows) != 1 || drows[0]["state"] != "active" {

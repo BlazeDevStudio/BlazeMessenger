@@ -20,3 +20,7 @@ PRAGMA user_version=1;
 
 CREATE TABLE IF NOT EXISTS revoked_node_keys (key_hash TEXT PRIMARY KEY, node_id TEXT NOT NULL, revoked_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS node_cert_issues (node_id TEXT NOT NULL, key_hash TEXT NOT NULL, issued_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY(node_id,key_hash,issued_at));
+
+-- v0.1.6: persistent, atomic, hashed device request nonce admission.
+CREATE TABLE IF NOT EXISTS device_request_nonces (replay_hash TEXT NOT NULL PRIMARY KEY, expires_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS device_request_nonces_expiry ON device_request_nonces(expires_at);

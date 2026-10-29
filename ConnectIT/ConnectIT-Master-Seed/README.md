@@ -1,3 +1,11 @@
+# ConnectIT MASTER v0.1.6 — Replay hardening integration checkpoint
+
+New persistent Master replay admission. See docs/DEVICE_REPLAY_v0.1.6.md.
+
+# ConnectIT Master v0.1.5 client-authentication boundary (development only)
+
+Authenticated, request-signed `GET /v1/devices/self` returns the device's own database ID needed for SecureBind approval. The Master retains the same 4-hour approval policy. See `docs/CLIENT_AUTH_v0.1.5.md` and `tests/client_auth_flow.py`. No existing LAN Messenger release is altered.
+
 # ConnectIT v0.1.4 — Node Revocation / Manual Renewal (DEVELOPMENT ONLY)
 
 New v0.1.4 hardening: exact Master-issued node certificate revocation, separate signed node-key revocation feed, fail-closed cached Seed enforcement on incoming/outgoing federation, safe same-key certificate hot reread, and new negative/live tests. See `docs/NODE_REVOCATION_v0.1.4.md`. Still NO-GO for production.

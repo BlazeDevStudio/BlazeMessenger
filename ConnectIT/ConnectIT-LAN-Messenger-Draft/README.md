@@ -1,3 +1,11 @@
+# ConnectIT CLIENT DRAFT v0.1.6 — Replay hardening integration checkpoint
+
+Runtime source unchanged from v0.1.5; documentation updated only. See docs/DEVICE_REPLAY_v0.1.6.md.
+
+# ConnectIT v0.1.5 — Authentication transport staging (NOT compiled Flutter)
+
+See `docs/CLIENT_AUTH_v0.1.5.md` and `lib/connectit/master_auth_client.dart`. No native key storage, PIN verifier or shipping integration.
+
 # ConnectIT v0.1.4 compatibility staging only
 
 No changes to original LAN Messenger app. Master and Seed use signed node-key revocations and same-key manual certificate renewal; no Flutter client login or SecureBind UI is implemented here. Original v0.3.2 temporary dummy remains opt-in and disabled by default.

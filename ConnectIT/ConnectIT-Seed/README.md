@@ -1,3 +1,11 @@
+# ConnectIT SATELLITE v0.1.6 — Replay hardening integration checkpoint
+
+Runtime source unchanged from v0.1.5; documentation updated only. See docs/DEVICE_REPLAY_v0.1.6.md.
+
+# ConnectIT Seed v0.1.5 carry-forward (unchanged v0.1.4 relay binary and source)
+
+This archive includes the existing verified v0.1.4 satellite as a **compatible reference**; v0.1.5 introduces an authenticated Master self-device lookup and separate draft client adapter, not a new Seed wire protocol.
+
 # ConnectIT v0.1.4 — Node Revocation / Manual Renewal (DEVELOPMENT ONLY)
 
 New v0.1.4 hardening: exact Master-issued node certificate revocation, separate signed node-key revocation feed, fail-closed cached Seed enforcement on incoming/outgoing federation, safe same-key certificate hot reread, and new negative/live tests. See `docs/NODE_REVOCATION_v0.1.4.md`. Still NO-GO for production.

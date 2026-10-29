@@ -1,0 +1,14 @@
+name: connectit_client_staging
+description: Isolated ConnectIT client protocol staging; not an integrated Flutter app.
+publish_to: none
+version: 0.1.5
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  crypto: ^3.0.6
+  cryptography: ^2.9.0
+
+dev_dependencies:
+  test: ^1.25.0

@@ -500,6 +500,9 @@ func start(dir, listen, cert, key string) error {
 	if e = migrateNodeRevocations(d); e != nil {
 		return e
 	}
+	if e = migrateDeviceReplay(d); e != nil {
+		return e
+	}
 	api := &api{db: d, priv: ed25519.PrivateKey(private), hmacKey: hmacSecret, attempts: map[string]rate{}}
 	mux := http.NewServeMux()
 	api.routes(mux)
