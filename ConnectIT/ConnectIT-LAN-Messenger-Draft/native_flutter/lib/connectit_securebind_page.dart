@@ -147,6 +147,7 @@ class _ConnectITSecureBindPageState extends State<ConnectITSecureBindPage> {
   @override
   Widget build(BuildContext context) {
     final list = _pending;
+    final displayTime = list?.serverTime;
     final requests = list?.requests ?? <ConnectITPendingApproval>[];
 
     return Scaffold(
@@ -224,8 +225,9 @@ class _ConnectITSecureBindPageState extends State<ConnectITSecureBindPage> {
                     const SizedBox(height: 8),
                     if ((request.state == 'pending' ||
                             request.state == 'approved') &&
-                        list!.serverTime >= request.startedAt &&
-                        list.serverTime < request.expiresAt)
+                        displayTime != null &&
+                        displayTime >= request.startedAt &&
+                        displayTime < request.expiresAt)
                       Wrap(
                         spacing: 8,
                         children: [
