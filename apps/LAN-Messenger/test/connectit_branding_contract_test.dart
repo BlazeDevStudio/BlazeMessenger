@@ -22,14 +22,18 @@ void main() {
     }
   });
 
-  test('ConnectIT is used for UI, Windows and Android icons only', () {
+  test('Legacy ConnectIT remains retained for native icons, v3 B anchors UI', () {
     final main = File('lib/main.dart').readAsStringSync();
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('tool/generate_assets.py').readAsStringSync();
     final platform = File('tool/prepare_platforms.py').readAsStringSync();
-    expect(main, contains('assets/branding/connectit/connectit-icon-48.png'));
+    expect(main, contains('SvgPicture.asset(BlazeIdentity.markAsset'));
+    expect(main, contains('color: BlazeIdentity.navy'));
+    expect(main, isNot(contains("Image.asset('assets/branding/connectit/connectit-icon-48.png'")));
     expect(main, contains("rootBundle.load('assets/icons/lan_messenger.ico')"));
     expect(pubspec, contains('assets/branding/connectit/'));
+    expect(pubspec, contains('assets/branding/blazedevstudio-v3/'));
+    expect(pubspec, contains('flutter_svg: ^2.2.4'));
     expect(generator, contains("root/'assets/branding/connectit/connectit.ico'"));
     expect(platform, contains("root / 'windows/runner/resources/app_icon.ico'"));
     expect(platform, contains("res / 'mipmap-anydpi-v26/ic_launcher.xml'"));

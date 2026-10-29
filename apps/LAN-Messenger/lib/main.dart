@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart' as wm;
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:flutter_background/flutter_background.dart';
+import 'src/brand_identity.dart';
 import 'src/settings.dart';
 import 'src/recoverable_json_file.dart';
 import 'src/lan_reconnect_policy.dart';
@@ -1552,11 +1554,12 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
 
   Widget _title() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-    color: settings.accent,
+    color: BlazeIdentity.navy,
     child: SafeArea(bottom: false, child: Row(children: [
-      Image.asset('assets/branding/connectit/connectit-icon-48.png',
-          width: 34, height: 34, filterQuality: FilterQuality.high),
-      const SizedBox(width: 9),
+      SvgPicture.asset(BlazeIdentity.markAsset,
+          width: 46, height: 46, fit: BoxFit.contain,
+          semanticsLabel: 'BlazeDevStudio'),
+      const SizedBox(width: 7),
       const Expanded(child: Text('LAN Messenger',
           maxLines: 1, overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white))),
