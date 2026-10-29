@@ -1,0 +1,99 @@
+name: ConnectIT v0.1.10 Android auth + approved v3 branding (DRAFT)
+on:
+  push:
+    branches:
+      - feature/connectit-android-auth-smoke-brand-v3-20261030
+    paths:
+      - '.github/workflows/connectit-android-smoke-v0110.yml'
+      - 'ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke/**'
+      - 'ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter/**'
+      - 'ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-debug-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Check approved SVG source fingerprints
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke/assets/brand
+          printf '%s\n' \
+            '55771df5907b913e3ae00221991237ab29d4a41679f492bbb43a9ecc607e9afd  main-plain.svg' \
+            '75e4375e0694d366163eb46565f14d2bdbcab1d070e96bf6e7ca797e68c6c559  sublogo-network.svg' | sha256sum -c -
+          if grep -Eiq '<image|base64,' main-plain.svg sublogo-network.svg; then
+            echo 'Raster-embedded or referenced artwork is not allowed'; exit 1
+          fi
+      - name: Resolve and verify native signer/PIN/SecureBind modules
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter
+        shell: bash
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test --reporter expanded
+      - name: Generate fresh Android Gradle project and install isolated sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=ConnectIT/ConnectIT-LAN-Messenger-Draft
+          SRC="$ROOT/android_smoke"
+          OUT="$ROOT/android_smoke_build"
+          flutter create --platforms=android --project-name connectit_android_smoke --org com.blazedevstudio "$OUT"
+          cp "$SRC/pubspec.yaml" "$OUT/pubspec.yaml"
+          cp "$SRC/lib/main.dart" "$OUT/lib/main.dart"
+          rm -rf "$OUT/test"
+          mkdir -p "$OUT/test" "$OUT/assets/brand"
+          cp "$SRC/test/"*.dart "$OUT/test/"
+          cp "$SRC/assets/brand/"*.svg "$OUT/assets/brand/"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build/android/app/src/main/AndroidManifest.xml')
+          raw = path.read_text()
+          if '<uses-permission android:name="android.permission.INTERNET"' not in raw:
+              raw = raw.replace('<application',
+                  '<uses-permission android:name="android.permission.INTERNET" />\n    <application',1)
+          path.write_text(raw)
+          PY
+          (cd "$OUT" && flutter pub get)
+      - name: Generate Android launcher PNGs FROM original approved B SVG
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --break-system-packages --quiet cairosvg
+          python3 - <<'PY'
+          from pathlib import Path
+          import cairosvg
+          project = Path('ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build')
+          svg = project/'assets/brand/main-plain.svg'
+          for density,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
+              target = project/'android/app/src/main/res'/('mipmap-'+density)/'ic_launcher.png'
+              target.parent.mkdir(parents=True,exist_ok=True)
+              cairosvg.svg2png(url=str(svg),write_to=str(target),
+                               output_width=size,output_height=size)
+          PY
+      - name: Compile and test real Android Flutter acceptance app
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter analyze
+          timeout 300s flutter test --reporter expanded
+          flutter build apk --debug
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connectit-v0110-android-debug-apk-exact-head
+          path: ConnectIT/ConnectIT-LAN-Messenger-Draft/android_smoke_build/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
