@@ -161,13 +161,8 @@ final class ConnectITLocalPinGate {
     });
   });
 
-  /// Intended to be passed as the verifyLocalPinAndConsent callback to the
-  /// existing Master client's decideBinding call. Never transmit the PIN.
-  Future<bool> verifyForApproval({
-    required String pin,
-    required bool userConfirmed,
-  }) => _serial(() async {
-    if (!userConfirmed) return false;
+  /// Must be invoked while holding the process-wide serialized lock.
+  Future<bool> _verifyWhileLocked(String pin) async {
     final state = await _read();
     final now = _nowSeconds();
     final lockedUntil = state['locked_until'] as int;
@@ -193,33 +188,39 @@ final class ConnectITLocalPinGate {
         failed >= _maxAttempts ? now + lockDuration.inSeconds : 0;
     await _save(state);
     return false;
+  }
+
+  /// Intended for the verifyLocalPinAndConsent callback supplied to
+  /// ConnectITMasterAuthClient.decideBinding. Never transmit the PIN.
+  Future<bool> verifyForApproval({
+    required String pin,
+    required bool userConfirmed,
+  }) => _serial(() async {
+    if (!userConfirmed) return false;
+    return _verifyWhileLocked(pin);
   });
 
-  /// Allows a known legitimate device to rotate the local PIN without
-  /// generating a new Ed25519 identity or silently resetting lock state.
+  /// Rotates a configured local PIN without replacing device identity.
+  /// Old-PIN check and the update share one serialized critical section.
   Future<void> changePin({
     required String oldPin,
     required String newPin,
     required String confirmation,
     required bool userConfirmed,
-  }) async {
+  }) => _serial(() async {
     if (!userConfirmed || !_validPin(newPin) || newPin != confirmation) {
       throw ArgumentError('Explicit consent and matching 8–12 digit PIN required');
     }
-    // The old PIN check uses the SAME shared lock/attempt counter. A failed
-    // check still persists failure/lockout before a new PIN can be installed.
-    if (!await verifyForApproval(pin: oldPin, userConfirmed: true)) {
+    if (!await _verifyWhileLocked(oldPin)) {
       throw StateError('Previous SecureBind PIN not verified');
     }
-    await _serial(() async {
-      final state = await _read();
-      final salt = _freshSalt();
-      final verifier = await _derive(newPin, salt);
-      state['salt_b64'] = base64.encode(salt);
-      state['verifier_b64'] = base64.encode(verifier);
-      state['failed_attempts'] = 0;
-      state['locked_until'] = 0;
-      await _save(state);
-    });
-  }
+    final state = await _read();
+    final salt = _freshSalt();
+    final verifier = await _derive(newPin, salt);
+    state['salt_b64'] = base64.encode(salt);
+    state['verifier_b64'] = base64.encode(verifier);
+    state['failed_attempts'] = 0;
+    state['locked_until'] = 0;
+    await _save(state);
+  });
 }
