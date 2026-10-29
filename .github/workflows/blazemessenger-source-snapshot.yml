@@ -1,0 +1,41 @@
+name: BlazeMessenger source snapshot (private development dump)
+on:
+  push:
+    branches: ['migration/connectit-lan-source-20261029']
+    paths: ['.github/workflows/blazemessenger-source-snapshot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-dump:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify source folders and reject generated caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f apps/LAN-Messenger/pubspec.yaml
+          test -f ConnectIT/ConnectIT-Master-Seed/device_replay.go
+          test -f ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/connectit/master_auth_client.dart
+          test -f ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter/lib/connectit_native_signer.dart
+          if git ls-files | grep -E '/(bin/|\.dart_tool/|build/)' ; then
+            echo 'Generated build output is tracked; refusing snapshot'
+            exit 1
+          fi
+      - name: Archive exact tracked Git source, not app releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          git archive --format=tar --prefix=BlazeMessenger/ HEAD | gzip -9 > out/BlazeMessenger-source.tar.gz
+          (cd out && sha256sum BlazeMessenger-source.tar.gz > SHA256SUMS.txt)
+          printf '{ "repository": "BlazingSystems/BlazeMessenger", "source_commit": "%s", "status": "development-no-go", "includes": "source-only" }\n' "$(git rev-parse HEAD)" > out/SOURCE_METADATA.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlazeMessenger-source-migration-20261029
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
