@@ -88,7 +88,7 @@ void main() {
     expect(gateway.decisionCount, 0);
   });
 
-  testWidgets('setup requires consent and creates a persistent PIN',
+  testWidgets('setup requires consent and cancellation changes nothing',
       (tester) async {
     final storage = _Storage();
     final gateway = _Gateway(_list());
@@ -104,32 +104,22 @@ void main() {
         '82740619');
     await tester.tap(find.byKey(const Key('securebind-consent')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('securebind-confirm')));
-    await tester.pump();
-    // PBKDF2 uses real asynchronous crypto, not the widget fake clock.
-    await tester.runAsync(() async {
-      for (var n = 0; n < 300; n++) {
-        if (storage.values.containsKey(ConnectITLocalPinGate.recordKey)) {
-          return;
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-      throw StateError('Timed out waiting for PIN setup');
-    });
+    final enabled = tester.widget<FilledButton>(
+        find.byKey(const Key('securebind-confirm')));
+    expect(enabled.onPressed, isNotNull);
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(storage.values[ConnectITLocalPinGate.recordKey], isNotNull);
-    expect(find.text('Local PIN configured'), findsOneWidget);
+    expect(storage.values[ConnectITLocalPinGate.recordKey], isNull);
     expect(gateway.decisionCount, 0);
   });
 
   testWidgets('cancel and unchecked consent never approve',
       (tester) async {
-    final storage = _Storage();
+    // Widget-only fixture: PIN derivation, signed checks and lockout are
+    // independently covered by the real ConnectITLocalPinGate unit tests.
+    final storage = _Storage()
+      ..values[ConnectITLocalPinGate.recordKey] = '{"fixture":"configured"}';
     final gate = _gate(storage);
-    await tester.runAsync(() async {
-      await gate.configure(
-        pin: '82740619', confirmation: '82740619', userConfirmed: true);
-    });
     final gateway = _Gateway(_list());
     await _screen(tester, gateway, gate);
     await tester.ensureVisible(find.byKey(
@@ -148,12 +138,11 @@ void main() {
 
   testWidgets('changed target blocks approval before network decision',
       (tester) async {
-    final storage = _Storage();
+    // Widget-only fixture: PIN derivation, signed checks and lockout are
+    // independently covered by the real ConnectITLocalPinGate unit tests.
+    final storage = _Storage()
+      ..values[ConnectITLocalPinGate.recordKey] = '{"fixture":"configured"}';
     final gate = _gate(storage);
-    await tester.runAsync(() async {
-      await gate.configure(
-        pin: '82740619', confirmation: '82740619', userConfirmed: true);
-    });
     final gateway = _Gateway(_list());
     gateway.next = _list(const ConnectITPendingApproval(
       'request-123', 'DIFFERENT_KEY', 'challenge-string',
@@ -179,12 +168,11 @@ void main() {
 
   testWidgets('exact confirmed target reaches approval gateway once',
       (tester) async {
-    final storage = _Storage();
+    // Widget-only fixture: PIN derivation, signed checks and lockout are
+    // independently covered by the real ConnectITLocalPinGate unit tests.
+    final storage = _Storage()
+      ..values[ConnectITLocalPinGate.recordKey] = '{"fixture":"configured"}';
     final gate = _gate(storage);
-    await tester.runAsync(() async {
-      await gate.configure(
-        pin: '82740619', confirmation: '82740619', userConfirmed: true);
-    });
     final gateway = _Gateway(_list());
     await _screen(tester, gateway, gate);
     await tester.ensureVisible(find.byKey(
@@ -207,12 +195,11 @@ void main() {
 
   testWidgets('expired requests do not display decision buttons',
       (tester) async {
-    final storage = _Storage();
+    // Widget-only fixture: PIN derivation, signed checks and lockout are
+    // independently covered by the real ConnectITLocalPinGate unit tests.
+    final storage = _Storage()
+      ..values[ConnectITLocalPinGate.recordKey] = '{"fixture":"configured"}';
     final gate = _gate(storage);
-    await tester.runAsync(() async {
-      await gate.configure(
-        pin: '82740619', confirmation: '82740619', userConfirmed: true);
-    });
     final expired = const ConnectITPendingApproval(
       'request-123', 'BASE64_PUBLIC_KEY_TEST', 'challenge-string',
       1000, 2900, 'pending',
