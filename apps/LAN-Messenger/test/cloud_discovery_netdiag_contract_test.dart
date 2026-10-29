@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('diagnostic collection executes only after real peer-UI failure', () {
-    final script = File('tool/android_dual_lan_smoke.sh').readAsStringSync();
+    final script = File('tool/android_dual_lan_smoke.sh')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
     final passBranch = script.indexOf(r'if [[ "$success" == 1 ]]');
     final diagnosticBranch = script.indexOf('else\n  # Diagnostic-only', passBranch);
     expect(passBranch, greaterThanOrEqualTo(0));
