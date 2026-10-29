@@ -1,4 +1,5 @@
 name: BlazeMessenger source snapshot (private development dump)
+# Rebuild after the completed v0.1.6 migration manifest readback.
 on:
   push:
     branches: ['migration/connectit-lan-source-20261029']
