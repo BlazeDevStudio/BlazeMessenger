@@ -1,13 +1,14 @@
-/* Generate native platform icons from the exact pinned BlazeDevStudio v3
+/* Generate native platform icons from the anchored BlazeDevStudio v3 LAN
  * SVG. This build-only script uses sharp 0.34.4 (Apache-2.0). It does not
- * redraw or modify source path geometry or access any remote resources.
+ * modify the official source B geometry or access remote resources. The
+ * product-only overlay is composed in a separate local SVG.
  */
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
 const app = path.resolve(__dirname, '../..');
-const source = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud.svg');
-const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud-transparent.svg');
+const source = path.join(app, 'assets/branding/blazedevstudio-v3/lan-hud.svg');
+const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/lan-hud-transparent.svg');
 const dest = path.join(app, 'assets/icons');
 
 function makeIco(buffers, sizes) {
@@ -42,8 +43,14 @@ async function main() {
   const icoSizes = [16,24,32,48,64,128,256];
   await fs.writeFile(path.join(dest, 'lan_messenger.ico'),
     makeIco(icoSizes.map(s => rendered.get(s)), icoSizes));
+  // Android masks adaptive icons to a centered safe area (~66% diameter).
+  // A full-bleed PNG clips the LAN node badge on round/other launchers.
+  // Scale the ENTIRE unmodified product SVG into the 432px foreground,
+  // keeping all nodes within the centered 144px-radius safe CIRCLE.
   await sharp(transparent, {density: 288})
-    .resize(432, 432, {fit: 'fill'})
+    .resize(272, 272, {fit: 'contain'})
+    .extend({top: 80, bottom: 80, left: 80, right: 80,
+      background: {r: 0, g: 0, b: 0, alpha: 0}})
     .png().toFile(path.join(dest, 'v3-adaptive-foreground.png'));
   await sharp({create: {width:432,height:432,channels:4,
     background:'#0B1427'}}).png()

@@ -7,3 +7,16 @@
 - **Auxiliary Z remains reserved** for its original CDN/dependency label, per the upstream v3 manifest.
 - **Legacy ConnectIT visual sources remain byte-for-byte**. A separate stacked native-icon phase converts the exact **public** V3 SVG to reproducible platform PNG/ICO with pinned build-only sharp 0.34.4 (Apache-2.0). It retains Android package ID, signing, ConnectIT Master/Seed code, contacts and protocol. No private 8K Drive renders are imported.
 - **Release boundary**: Flutter V3 SVG runtime/CI render needs validation. Native icon harmonization is staged here; requires exact-head Windows/Android compilation and artifact inspection before acceptance. Real Windows incoming Android video crash and signing continuity remain NO-GO.
+
+## LAN Messenger product mark (distinct from official corporate logo)
+
+The application uses `lan-hud.svg` for native icons and
+`lan-hud-transparent.svg` for its Flutter header. Both are exact copies of
+pinned official V3 `main-hud*.svg` **with only a separate appended overlay**:
+a three-node local peer topology (two peers and one hub) in blue/white on navy.
+The original sculpted B, white landmarks, ruby target and gradient definitions
+remain byte-for-byte, and the exact master SVGs are retained separately.
+No text is crammed into the small tray/icon sizes. The LAN-specific badge is
+placed at the lower right without altering the source B drawing. The auxiliary
+Z remains reserved for CDN/dependency labeling. This derivative is explicitly
+**LAN Messenger product artwork**, not a newly approved corporate master.
