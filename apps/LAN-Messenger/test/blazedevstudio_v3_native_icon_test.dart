@@ -51,7 +51,8 @@ void main() {
     }
     final ico = File('assets/icons/lan_messenger.ico').readAsBytesSync();
     const icoSizes = [16, 24, 32, 48, 64, 128, 256];
-    expect(littleEndian(ico, 4), icoSizes.length);
+    // ICO icon count is a 16-bit field; the next bytes are entry dimensions.
+    expect(ico[4] | (ico[5] << 8), icoSizes.length);
     for (var i = 0; i < icoSizes.length; i++) {
       final pos = 6 + i * 16;
       final size = icoSizes[i];
