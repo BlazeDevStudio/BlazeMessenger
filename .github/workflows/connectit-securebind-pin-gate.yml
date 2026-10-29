@@ -1,0 +1,29 @@
+name: ConnectIT SecureBind local PIN gate (draft)
+on:
+  push:
+    branches:
+      - feature/connectit-securebind-pin-gate-20261029
+    paths:
+      - '.github/workflows/connectit-securebind-pin-gate.yml'
+      - 'ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-pin-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Static analysis and explicit PIN security regressions
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft/native_flutter
+        run: |
+          flutter --version
+          flutter pub get
+          flutter analyze
+          flutter test --reporter expanded
