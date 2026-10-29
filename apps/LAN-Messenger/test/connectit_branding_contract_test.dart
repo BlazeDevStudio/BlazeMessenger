@@ -22,7 +22,7 @@ void main() {
     }
   });
 
-  test('Legacy ConnectIT remains retained for native icons, v3 B anchors UI', () {
+  test('Legacy ConnectIT remains immutable; V3 B anchors UI and native icons', () {
     final main = File('lib/main.dart').readAsStringSync();
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('tool/generate_assets.py').readAsStringSync();
@@ -35,10 +35,13 @@ void main() {
     expect(pubspec, contains('assets/branding/connectit/'));
     expect(pubspec, contains('assets/branding/blazedevstudio-v3/'));
     expect(pubspec, contains('flutter_svg: ^2.2.4'));
-    expect(generator, contains("root/'assets/branding/connectit/connectit.ico'"));
+    expect(generator, contains("root/'tool/native-icons/generate.cjs'"));
+    expect(generator, isNot(contains("connectit.ico")));
     expect(platform, contains("root / 'windows/runner/resources/app_icon.ico'"));
     expect(platform, contains("res / 'mipmap-anydpi-v26/ic_launcher.xml'"));
-    expect(platform, contains('android-adaptive-foreground.png'));
-    expect(platform, contains('android-adaptive-background.png'));
+    expect(platform, contains('v3-adaptive-foreground.png'));
+    expect(platform, contains('v3-adaptive-background.png'));
+    expect(platform, contains("brand / 'lan_messenger.ico'"));
+    expect(platform, isNot(contains("brand = root / 'assets/branding/connectit'")));
   });
 }
