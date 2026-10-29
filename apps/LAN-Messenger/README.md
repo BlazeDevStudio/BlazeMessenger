@@ -15,6 +15,14 @@ field-test preview, **not production-certified**. Review the companion
 
 No internet, account, phone number, pairing code, scanning, server, or IP configuration is needed. First-run OS permissions and Windows Firewall approval may still be required. An optional Android foreground service keeps the connection alive with an ongoing notification, but OS battery policies can still stop it. Calls in the background and Bluetooth helmets require hands-on verification.
 
+## Product identity
+
+LAN Messenger's icon retains the official BlazeDevStudio V3 B and ruby marker
+with a **separate lower-right three-node LAN badge**. Editable SVG derivatives
+(`assets/branding/blazedevstudio-v3/lan-hud*.svg`) preserve the exact original
+master path geometry; the Windows/Android icon builder rasterizes only these
+product variants. Official corporation master files remain unchanged.
+
 ## Developer guide
 
 ```sh

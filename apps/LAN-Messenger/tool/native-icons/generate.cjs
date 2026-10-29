@@ -1,13 +1,14 @@
-/* Generate native platform icons from the exact pinned BlazeDevStudio v3
+/* Generate native platform icons from the anchored BlazeDevStudio v3 LAN
  * SVG. This build-only script uses sharp 0.34.4 (Apache-2.0). It does not
- * redraw or modify source path geometry or access any remote resources.
+ * modify the official source B geometry or access remote resources. The
+ * product-only overlay is composed in a separate local SVG.
  */
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
 const app = path.resolve(__dirname, '../..');
-const source = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud.svg');
-const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud-transparent.svg');
+const source = path.join(app, 'assets/branding/blazedevstudio-v3/lan-hud.svg');
+const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/lan-hud-transparent.svg');
 const dest = path.join(app, 'assets/icons');
 
 function makeIco(buffers, sizes) {

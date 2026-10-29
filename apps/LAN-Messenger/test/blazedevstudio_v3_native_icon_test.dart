@@ -34,8 +34,8 @@ void main() {
         '927f2310166fca2dc30b05c0ff49436db6abb238');
     expect(file.readAsStringSync(), contains('id="ruby-target"'));
     final gen = File('tool/native-icons/generate.cjs').readAsStringSync();
-    expect(gen, contains('main-hud.svg'));
-    expect(gen, contains('main-hud-transparent.svg'));
+    expect(gen, contains('lan-hud.svg'));
+    expect(gen, contains('lan-hud-transparent.svg'));
     expect(gen, contains("makeIco("));
   });
 }

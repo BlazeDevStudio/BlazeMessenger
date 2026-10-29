@@ -13,6 +13,7 @@ void main() {
     expect(main, contains('id="Blaze-B-master"'));
     expect(main, contains('id="ruby-target"'));
     expect(main, contains('id="blue-ribbon"'));
+    expect(main, contains('id="lan-peer-network"'));
     expect(main, contains('viewBox="0 0 1248 1248"'));
     expect(network, contains('<svg'));
     expect(network, contains('circle'));
@@ -27,7 +28,7 @@ void main() {
       final prefix = utf8.encode('blob ${bytes.length}\u0000');
       return sha1.convert([...prefix, ...bytes]).toString();
     }
-    expect(gitBlobSha(BlazeIdentity.markAsset),
+    expect(gitBlobSha('assets/branding/blazedevstudio-v3/main-hud-transparent.svg'),
         'f2cb5451b701aed324cba7169883d073f2eee65e');
     expect(gitBlobSha(BlazeIdentity.networkAsset),
         '70d265d19e350bf4414fca0f034ab434c488ba5a');

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 /// Source: BlazeDevStudio/BlazeWeb at 7ce8f71456737f84df38bbef31a36e9eb8b792fd.
-/// The exact verified v3 SVG is bundled in assets/branding/blazedevstudio-v3.
+/// Product-specific LAN derivation overlays a small peer topology on the
+/// exact approved v3 B without changing the immutable official source artwork.
 abstract final class BlazeIdentity {
   static const String markAsset =
-      'assets/branding/blazedevstudio-v3/main-hud-transparent.svg';
+      'assets/branding/blazedevstudio-v3/lan-hud-transparent.svg';
   static const String networkAsset =
       'assets/branding/blazedevstudio-v3/sublogo-network.svg';
   static const Color navy = Color(0xFF0B1427);
