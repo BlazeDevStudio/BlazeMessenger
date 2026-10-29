@@ -1,0 +1,68 @@
+name: Import pinned LAN Messenger and ConnectIT sources (draft)
+on:
+  push:
+    branches: [migration/connectit-lan-source-20261029]
+    paths:
+      - '.github/workflows/messaging-import.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    if: github.repository == 'BlazingSystems/BlazeMessenger'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout destination feature branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Clone immutable source branches, sparse paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --single-branch --filter=blob:none --sparse --branch feat/lan-connectit-branding-and-reliability https://github.com/BlazingSystems/BlazingSystems-Experiments.git "$RUNNER_TEMP/lan-original"
+          test "$(git -C "$RUNNER_TEMP/lan-original" rev-parse HEAD)" = 'e115889f8a5ff8b50f9fc0c48afbb6fa24340bfe'
+          git -C "$RUNNER_TEMP/lan-original" sparse-checkout set experiment/apps/LAN-Messenger
+          git clone -q --depth=1 --single-branch --filter=blob:none --sparse --branch feature/connectit-v014-node-revocation-20261028 https://github.com/BlazingSystems/BlazingSystems-Experiments.git "$RUNNER_TEMP/connectit-original"
+          test "$(git -C "$RUNNER_TEMP/connectit-original" rev-parse HEAD)" = '70982717496345287ce9f925ecd4a7af3f32eaa8'
+          git -C "$RUNNER_TEMP/connectit-original" sparse-checkout set experiment/apps/ConnectIT
+          mkdir -p apps/LAN-Messenger ConnectIT
+          cp -a "$RUNNER_TEMP/lan-original/experiment/apps/LAN-Messenger/." apps/LAN-Messenger/
+          cp -a "$RUNNER_TEMP/connectit-original/experiment/apps/ConnectIT/." ConnectIT/
+          test -f apps/LAN-Messenger/pubspec.yaml
+          test -f ConnectIT/ConnectIT-Master-Seed/go.mod
+          test -f ConnectIT/ConnectIT-Seed/go.mod
+          # Bring the original unmodified branding PNG/ICO assets into standalone ConnectIT staging.
+          mkdir -p ConnectIT/ConnectIT-LAN-Messenger-Draft/assets
+          find apps/LAN-Messenger/assets/branding/connectit -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do
+            dest="ConnectIT/ConnectIT-LAN-Messenger-Draft/assets/$(basename "$file")"
+            if [ ! -e "$dest" ]; then cp "$file" "$dest"; fi
+          done
+          # Generated executables, keys and archived release artifacts do not belong to Git source.
+          find ConnectIT -type d -name bin -prune -exec rm -rf {} +
+          find ConnectIT -type f -name SHA256SUMS.txt -delete
+      - name: Go development tests on migrated sources
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+      - name: Master unit tests and Satellite unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsqlite3-dev
+          (cd ConnectIT/ConnectIT-Master-Seed && CGO_ENABLED=1 go test ./... -count=1)
+          (cd ConnectIT/ConnectIT-Seed && CGO_ENABLED=0 go test ./... -count=1)
+      - name: Commit imported files only to this migration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'migration/connectit-lan-source-20261029'
+          git config user.name 'BlazeMessenger Migration Bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- apps/LAN-Messenger ConnectIT
+          git diff --cached --check
+          if git diff --cached --quiet; then echo 'No changes to import'; exit 0; fi
+          git commit -m 'migrate(messaging): preserve pinned LAN client and ConnectIT v0.1.4 source'
+          git push origin HEAD:refs/heads/migration/connectit-lan-source-20261029
