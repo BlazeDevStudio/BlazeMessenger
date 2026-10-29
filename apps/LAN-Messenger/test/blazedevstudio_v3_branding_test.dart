@@ -31,6 +31,22 @@ void main() {
         'f2cb5451b701aed324cba7169883d073f2eee65e');
     expect(gitBlobSha(BlazeIdentity.networkAsset),
         '70d265d19e350bf4414fca0f034ab434c488ba5a');
+    // Product variation is an overlay, not a rewritten parent-brand master.
+    final master = File(BlazeIdentity.markAsset).readAsStringSync();
+    final product = File(BlazeIdentity.lanMarkAsset).readAsStringSync();
+    final overlayStart = product.indexOf('<g id="lan-peer-topology"');
+    expect(overlayStart, greaterThan(0));
+    expect(product.substring(0, overlayStart), master.substring(0,
+        master.lastIndexOf('</svg>')));
+    expect(product, contains('Three connected local network devices'));
+    expect(product, contains('cx="997" cy="839"'));
+    expect(product, contains('cx="946" cy="942"'));
+    expect(product, contains('cx="1050" cy="942"'));
+    final compact = File(BlazeIdentity.lanCompactMarkAsset).readAsStringSync();
+    expect(compact, contains('id="lan-peer-topology-compact"'));
+    expect(compact, contains('r="39"'));
+    final native = File(BlazeIdentity.lanNativeMarkAsset).readAsStringSync();
+    expect(native, contains('id="lan-peer-topology"'));
   });
 
   testWidgets('header brand renders from local approved SVG without network',
@@ -38,7 +54,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: Center(
         child: SizedBox(width: 52, height: 52,
-          child: SvgPicture.asset(BlazeIdentity.markAsset)),
+          child: SvgPicture.asset(BlazeIdentity.lanMarkAsset)),
       )),
     ));
     await tester.pumpAndSettle();

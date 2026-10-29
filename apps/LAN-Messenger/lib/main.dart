@@ -1556,9 +1556,9 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
     color: BlazeIdentity.navy,
     child: SafeArea(bottom: false, child: Row(children: [
-      SvgPicture.asset(BlazeIdentity.markAsset,
+      SvgPicture.asset(BlazeIdentity.lanMarkAsset,
           width: 46, height: 46, fit: BoxFit.contain,
-          semanticsLabel: 'BlazeDevStudio'),
+          semanticsLabel: 'LAN Messenger — BlazeDevStudio network mark'),
       const SizedBox(width: 7),
       const Expanded(child: Text('LAN Messenger',
           maxLines: 1, overflow: TextOverflow.ellipsis,

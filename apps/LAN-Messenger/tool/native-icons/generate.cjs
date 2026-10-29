@@ -6,8 +6,9 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
 const app = path.resolve(__dirname, '../..');
-const source = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud.svg');
-const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/main-hud-transparent.svg');
+const source = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark.svg');
+const compact = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark-compact.svg');
+const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark-transparent.svg');
 const dest = path.join(app, 'assets/icons');
 
 function makeIco(buffers, sizes) {
@@ -34,7 +35,9 @@ async function main() {
   const sizes = [16,24,32,48,64,72,96,128,144,192,256,512];
   const rendered = new Map();
   for (const size of sizes) {
-    const bytes = await sharp(source, {density: 288})
+    // At tray size 16-32px, use the simplified three-node glyph.
+    const svg = size <= 32 ? compact : source;
+    const bytes = await sharp(svg, {density: 288})
       .resize(size, size, {fit: 'fill'}).png().toBuffer();
     await fs.writeFile(path.join(dest, `v3-icon-${size}.png`), bytes);
     rendered.set(size, bytes);
@@ -48,6 +51,6 @@ async function main() {
   await sharp({create: {width:432,height:432,channels:4,
     background:'#0B1427'}}).png()
     .toFile(path.join(dest, 'v3-adaptive-background.png'));
-  console.log('Generated local v3 PNG, Android adaptive, Windows/tray ICO assets');
+  console.log('Generated LAN topology product icons from untouched official V3 master');
 }
 main().catch(e => { console.error(e); process.exitCode=1; });
