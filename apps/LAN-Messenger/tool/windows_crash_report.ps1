@@ -38,9 +38,9 @@ function Get-WerAppCrashFields([string]$Message) {
     if ($kind -notin @("APPCRASH", "BEX", "BEX64")) { return $null }
     if ((Get-EventField $Message "P1") -ine "lan_messenger.exe") { return $null }
     return [pscustomobject]@{
-        Module = Get-EventField $Message "P4"
-        Code = Get-EventField $Message "P7"
-        Offset = Get-EventField $Message "P8"
+        Module = (Get-EventField $Message "P4")
+        Code = (Get-EventField $Message "P7")
+        Offset = (Get-EventField $Message "P8")
     }
 }
 
