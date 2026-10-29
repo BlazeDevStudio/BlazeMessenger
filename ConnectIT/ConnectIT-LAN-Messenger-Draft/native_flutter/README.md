@@ -67,3 +67,33 @@ Run `flutter analyze` and `flutter test` from `native_flutter` to inspect its
 unit-test surface. The workflow runs against fake encrypted-storage adapters;
 those tests do **not** validate actual mobile/desktop keystore behavior. Existing
 LAN Messenger call/video/file functionality is not touched by this module.
+
+
+## v0.1.9 isolated SecureBind review screen
+
+New staging files:
+- `lib/connectit_pin_dialog.dart` — short-lived PIN/consent dialog; displays the full binding target key and challenge.
+- `lib/connectit_securebind_gateway.dart` — authenticated Master adapter, with an injectable gateway for widget tests.
+- `lib/connectit_securebind_page.dart` — PIN setup, refresh, review and Approve / Revoke / Not me actions.
+- `test/connectit_securebind_page_test.dart` — permission, cancelled dialog, changed-target, expiry, and successful-dispatch widget tests.
+
+Integrate only in an **independent test host** with an already authenticated,
+Master-verified ConnectITMasterSession, matching own device metadata, an
+unchanged Ed25519 ConnectITSecureSigner, and an OS-protected
+ConnectITLocalPinGate. Instantiate ConnectITMasterSecureBindGateway with
+ConnectITSecureBindDecision and present ConnectITSecureBindPage using that
+gateway and gate. Do not route these actions through LAN Messenger's existing
+LAN-only identity, calling or file-transfer services.
+
+The page fetches the authoritative pending list again **after** PIN and target
+consent, refuses a changed binding ID, target key, challenge, started/expires
+times, state, or expired request, and lets Master enforce unique approval
+intervals. A local PIN is required for *all* decisions; no PIN, certificate or
+installation token is written to logs, widgets or browser storage. PIN data is
+transient and never sent to Master.
+
+**Not production-ready**: this is a separate Flutter widget library, **not**
+an installable ConnectIT APK, a Windows native executable, push notification
+delivery, hardware-backed OS user-presence prompt, or complete login/session
+persistence. Physical Android/Windows secure-storage tests, notification
+delivery, and device-level accessibility/security review are still required.
