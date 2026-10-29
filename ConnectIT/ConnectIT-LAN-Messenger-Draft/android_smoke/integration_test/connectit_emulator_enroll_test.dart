@@ -41,7 +41,7 @@ void main() {
         expect(own.accountId, account);
         expect(own.deviceId, isNotEmpty);
         await plugin.write(key: metadataKey,
-            value: signer.publicKeyBase64 + ':' + own.deviceId);
+            value: [signer.publicKeyBase64, own.deviceId].join(':'));
       } finally {
         master.close();
         signer?.dispose();
