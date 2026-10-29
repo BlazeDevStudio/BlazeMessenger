@@ -17,9 +17,25 @@ void main() {
     expect(block, contains('await _restoreCompactVideo(forceOpen: forceOpen)'));
     expect(block, isNot(contains('await wm.windowManager.setSkipTaskbar(true)')));
   });
-  test('Windows compact call presentation rechecks live session after awaiting toast', () {
+  test('Windows compact presentation rechecks original session and epoch after toast', () {
     final app = File('lib/main.dart').readAsStringSync();
-    expect(app, contains('if (intercom?.callId == id && intercom?.closing != true)'));
+    final begin = app.indexOf('Future<void> _showOngoingCall(');
+    final end = app.indexOf('Future<bool> _isDesktopBackground()', begin);
+    expect(begin, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(begin));
+    final body = app.substring(begin, end);
+    final dismissed = body.indexOf('await _dismissDesktopCall();',
+        body.indexOf('if (video && background)'));
+    final recheck = body.indexOf('intercom?.callId == id', dismissed);
+    final closeGuard = body.indexOf('intercom?.closing != true', recheck);
+    final epochGuard = body.indexOf('_desktopCallSurfaceEpoch.isCurrent(desktopEpoch)',
+        closeGuard);
+    final compact = body.indexOf('await _openCompactVideoWindow();', recheck);
+    expect(dismissed, greaterThanOrEqualTo(0));
+    expect(recheck, greaterThan(dismissed));
+    expect(closeGuard, greaterThan(recheck));
+    expect(epochGuard, greaterThan(closeGuard));
+    expect(compact, greaterThan(epochGuard));
   });
   test('Windows compact texture frame completes before native window mutations', () {
     final app = File('lib/main.dart').readAsStringSync();
@@ -44,6 +60,58 @@ void main() {
     expect(restoring, contains('if (!mounted) return'));
     expect(opening, contains('const Duration(seconds: 3)'));
     expect(restoring, contains('const Duration(seconds: 3)'));
+  });
+
+  test('Windows compact entry detaches video before every HWND mutation', () {
+    final app = File('lib/main.dart').readAsStringSync();
+    final start = app.indexOf('Future<void> _openCompactVideoWindow()');
+    final end = app.indexOf('Future<void> _restoreCompactVideo(', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final body = app.substring(start, end);
+    final detach = body.indexOf('_windowsVideoTransition = true;');
+    final frame = body.indexOf('await WidgetsBinding.instance.endOfFrame', detach);
+    final inactiveRestore = body.indexOf("'restoreMainInactive'", frame);
+    final resize = body.indexOf('await wm.windowManager.setSize(', frame);
+    final topmost = body.indexOf('await wm.windowManager.setAlwaysOnTop(true)', frame);
+    final reveal = body.indexOf('_windowsVideoTransition = false;', frame);
+    expect(detach, greaterThanOrEqualTo(0));
+    expect(frame, greaterThan(detach));
+    expect(inactiveRestore, greaterThan(frame));
+    expect(resize, greaterThan(frame));
+    expect(topmost, greaterThan(frame));
+    expect(reveal, greaterThan(topmost));
+  });
+
+  test('Windows compact exit keeps media detached until native restore ends', () {
+    final app = File('lib/main.dart').readAsStringSync();
+    final start = app.indexOf('Future<void> _restoreCompactVideo(');
+    final end = app.indexOf('Future<void> _expandActiveCall()', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final body = app.substring(start, end);
+    final detach = body.indexOf('_windowsVideoTransition = true;');
+    final frame = body.indexOf('await WidgetsBinding.instance.endOfFrame', detach);
+    final native = body.indexOf('await wm.windowManager.setAlwaysOnTop(false)', frame);
+    final reveal = body.indexOf('_windowsVideoTransition = false;', native);
+    expect(detach, greaterThanOrEqualTo(0));
+    expect(frame, greaterThan(detach));
+    expect(native, greaterThan(frame));
+    expect(reveal, greaterThan(native));
+    expect(body.substring(reveal), contains('if (mounted) setState(() {});'));
+  });
+
+  test('Windows transition placeholder cannot mount an RTC video view', () {
+    final app = File('lib/main.dart').readAsStringSync();
+    final start = app.indexOf('Widget build(BuildContext context) => Theme(');
+    expect(start, greaterThan(0));
+    final body = app.substring(start);
+    final guard = body.indexOf('Platform.isWindows && _windowsVideoTransition');
+    final compact = body.indexOf('_compactWindowsVideo', guard);
+    expect(guard, greaterThanOrEqualTo(0));
+    expect(compact, greaterThan(guard));
+    expect(body.substring(guard, compact), contains('const Scaffold('));
+    expect(body.substring(guard, compact), isNot(contains('RTCVideoView(')));
   });
 
 }

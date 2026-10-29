@@ -1,0 +1,59 @@
+name: LAN Messenger - dedicated source sync validation
+on:
+  push:
+    branches: ['sync/lan-messenger-tested-253-20261029']
+    paths:
+      - 'apps/LAN-Messenger/**'
+      - '.github/workflows/lan-messenger-sync.yml'
+  pull_request:
+    paths:
+      - 'apps/LAN-Messenger/**'
+      - '.github/workflows/lan-messenger-sync.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lan-sync-validate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/LAN-Messenger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: python3 tool/generate_assets.py
+      - run: flutter create --platforms=android --project-name lan_messenger .
+      - run: python3 tool/prepare_platforms.py
+      - run: flutter pub get
+      - run: dart format --output=write lib test
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+      - run: flutter build apk --release --split-per-abi --tree-shake-icons
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/LAN-Messenger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: python tool/generate_assets.py
+      - run: flutter create --platforms=windows --project-name lan_messenger .
+      - run: python tool/prepare_platforms.py
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+      - run: ./tool/windows_crash_report.ps1 -SelfTest
+        shell: pwsh
+      - run: flutter build windows --release --tree-shake-icons
