@@ -78,6 +78,25 @@ final class ConnectITNativeCredentialStore {
     }
   }
 
+  /// Returning-device login must refuse to create an identity. Missing or
+  /// malformed secure storage requires explicit recovery through SecureBind;
+  /// there is NO new-key/enrollment fallback.
+  Future<ConnectITPlatformSigner> loadExisting() async {
+    final preceding = _creationTail;
+    final completed = Completer<void>();
+    _creationTail = completed.future;
+    await preceding;
+    try {
+      final saved = await secrets.read(recordKey);
+      if (saved == null) {
+        throw StateError('No existing ConnectIT device identity; use SecureBind');
+      }
+      return await _decode(saved);
+    } finally {
+      completed.complete();
+    }
+  }
+
   Future<ConnectITPlatformSigner> _loadOrCreateLocked() async {
     final existing = await secrets.read(recordKey);
     if (existing != null) {

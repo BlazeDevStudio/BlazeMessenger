@@ -105,4 +105,31 @@ void main() {
     restarted.dispose();
   });
 
+  test('returning login refuses missing device without creating a key', () async {
+    final secure = MemorySecrets();
+    await expectLater(
+      ConnectITNativeCredentialStore(secure).loadExisting(),
+      throwsStateError,
+    );
+    expect(secure.writes, 0);
+    expect(secure.record, isNull);
+    final installed = await ConnectITNativeCredentialStore(secure).loadOrCreate();
+    final returned = await ConnectITNativeCredentialStore(secure).loadExisting();
+    expect(secure.writes, 1);
+    expect(returned.publicKeyBase64, installed.publicKeyBase64);
+    expect(returned.installationId, installed.installationId);
+    installed.dispose();
+    returned.dispose();
+  });
+
+  test('returning login rejects corrupted secure key without regeneration',
+      () async {
+    final secure = MemorySecrets()..record = '{corrupt';
+    await expectLater(
+      ConnectITNativeCredentialStore(secure).loadExisting(),
+      throwsFormatException,
+    );
+    expect(secure.writes, 0);
+  });
+
 }

@@ -81,6 +81,7 @@ func (a *api) routes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("/v1/devices/self", a.deviceSelf)
 	mux.HandleFunc("/v1/enroll", a.enroll)
+	mux.HandleFunc("/v1/auth/returning", a.returningDevice)
 	mux.HandleFunc("/v1/bind/start", a.bindStart)
 	mux.HandleFunc("/v1/bind/pending", a.pending)
 	mux.HandleFunc("/v1/bind/decision", a.decision)
@@ -180,6 +181,66 @@ func (a *api) enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, 200, map[string]any{"device_certificate": issue(a.priv, in.Username, in.DevicePublicKey, 7*86400), "expires_in": 7 * 86400, "protocol": "blaze-seed-v1-compatible"})
+}
+
+// returningDevice issues a fresh Master-signed certificate to an ALREADY
+// trusted device. Unlike /v1/enroll it cannot create or change device records,
+// claim the first device, or perform a SecureBind approval/finalization.
+//
+// The signature binds account, random nonce AND original installation token.
+// Server also validates the account password and stored token HMAC. Replayed
+// signed proofs are rejected by the existing durable SQLite nonce ledger.
+func (a *api) returningDevice(w http.ResponseWriter, r *http.Request) {
+	if !a.guard(w, r) {
+		return
+	}
+	var in struct {
+		Username        string `json:"username"`
+		Password        string `json:"password"`
+		DevicePublicKey string `json:"device_public_key_b64"`
+		InstallationID  string `json:"installation_id"`
+		Nonce           string `json:"nonce"`
+		Pop             string `json:"proof_signature_b64"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	canonical := "ConnectIT-returning-auth-v1\n" + in.Username + "\n" + in.Nonce + "\n" + in.InstallationID
+	if !validID(in.Username) || !validPub(in.DevicePublicKey) ||
+		!validInstall(in.InstallationID) || !validNonce(in.Nonce) ||
+		!signedProof(in.DevicePublicKey, canonical, in.Pop) {
+		failure(w, 400, "invalid returning-device proof")
+		return
+	}
+	if _, ok := a.account(in.Username, in.Password); !ok {
+		failure(w, 401, "invalid credentials")
+		return
+	}
+	hash := installHash(a.hmacKey, in.InstallationID)
+	rows, e := a.db.run("SELECT id FROM devices WHERE account_id=? AND public_key=? AND token_hash=? AND state='active'",
+		in.Username, in.DevicePublicKey, hash)
+	if e != nil {
+		failure(w, 503, "returning device lookup unavailable")
+		return
+	}
+	if len(rows) != 1 {
+		failure(w, 403, "device is not trusted; use SecureBind")
+		return
+	}
+	switch a.admitDeviceNonce(in.DevicePublicKey, in.Nonce, time.Now().Unix()) {
+	case nonceAccepted:
+	case nonceReplay:
+		failure(w, 409, "replayed returning-device proof")
+		return
+	default:
+		failure(w, 503, "device replay protection unavailable")
+		return
+	}
+	reply(w, 200, map[string]any{
+		"device_certificate": issue(a.priv, in.Username, in.DevicePublicKey, 7*86400),
+		"expires_in": 7 * 86400,
+		"status": "returning_existing_device",
+	})
 }
 
 // deviceSelf reveals only the authenticated device ID and its own account ID.

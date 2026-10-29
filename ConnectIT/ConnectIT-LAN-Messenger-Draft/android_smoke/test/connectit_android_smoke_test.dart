@@ -46,10 +46,38 @@ void main() {
     await tester.pumpWidget(const ConnectITAcceptanceApp());
     await tester.pump();
     final enroll = find.byKey(const Key('enroll-first-device'));
-    await tester.ensureVisible(enroll);
+    await tester.scrollUntilVisible(enroll, 250,
+        scrollable: find.byType(Scrollable).first);
+    // The additional returning-login row pushes this button just below the
+    // 600px test window; make it genuinely hit-testable before tapping.
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
     await tester.tap(enroll);
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('auth-status')), 250,
+        scrollable: find.byType(Scrollable).first);
     expect(find.textContaining('FormatException'), findsOneWidget);
   });
+
+  testWidgets('returning login is an explicit independent action',
+      (tester) async {
+    await tester.pumpWidget(const ConnectITAcceptanceApp());
+    await tester.pump();
+    final returning = find.byKey(const Key('returning-device'));
+    expect(returning, findsOneWidget);
+    expect(find.text('Return on this device'), findsOneWidget);
+    final button = tester.widget<FilledButton>(returning);
+    expect(button.onPressed, isNotNull);
+    // With invalid account format, the client must fail before reading the
+    // native keystore or attempting network enrollment.
+    await tester.ensureVisible(returning);
+    await tester.tap(returning);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('auth-status')), 250,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('FormatException'), findsOneWidget);
+    expect(find.textContaining('Existing trusted device verified'), findsNothing);
+  });
+
+
 }
