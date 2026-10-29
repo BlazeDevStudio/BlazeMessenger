@@ -1,0 +1,80 @@
+name: Integrate ConnectIT v0.1.6 source into BlazeMessenger (draft)
+on:
+  push:
+    branches: [migration/connectit-lan-source-20261029]
+    paths: ['.github/workflows/connectit-v016-integrate.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  migrate-client-auth:
+    if: github.repository == 'BlazingSystems/BlazeMessenger'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Apply exact archived v0.1.6 source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'migration/connectit-lan-source-20261029'
+          test -f migration/connectit-v014-to-v016.patch
+          test -f ConnectIT/ConnectIT-Master-Seed/api.go
+          if [ ! -f ConnectIT/ConnectIT-Master-Seed/device_replay.go ]; then
+            git apply --check migration/connectit-v014-to-v016.patch
+            git apply migration/connectit-v014-to-v016.patch
+          fi
+          test -f ConnectIT/ConnectIT-Master-Seed/device_replay.go
+          test -f ConnectIT/ConnectIT-LAN-Messenger-Draft/lib/connectit/master_auth_client.dart
+          git status --short
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libsqlite3-dev python3-cryptography
+      - name: Go static checks and unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd ConnectIT/ConnectIT-Master-Seed && go vet ./... && CGO_ENABLED=1 go test -count=1 ./... && go build -o bin/connectit-master .)
+          (cd ConnectIT/ConnectIT-Seed && go vet ./... && CGO_ENABLED=1 go test -race -count=1 ./... && CGO_ENABLED=0 go build -o bin/connectit-seed .)
+      - name: Live client authentication, durable replay and node federation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ConnectIT/ConnectIT-Master-Seed/tests/device_replay_restart.py
+          python3 ConnectIT/ConnectIT-Master-Seed/tests/client_auth_flow.py
+          python3 ConnectIT/ConnectIT-Master-Seed/tests/node_revoke_live.py
+          python3 ConnectIT/ConnectIT-Master-Seed/tests/signed_mesh_e2e.py
+      - name: Dart SDK setup for independent ConnectIT authentication draft
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Dart static analysis, test, contract script
+        shell: bash
+        working-directory: ConnectIT/ConnectIT-LAN-Messenger-Draft
+        run: |
+          set -euo pipefail
+          dart pub get
+          dart analyze lib test
+          dart test test/master_auth_client_test.dart
+          dart run test/contract_test.dart
+      - name: Commit source only on isolated migration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'migration/connectit-lan-source-20261029'
+          git config user.name 'BlazeMessenger Migration Bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- ConnectIT
+          git reset -q -- ConnectIT/**/bin/ || true
+          git diff --cached --check
+          if git diff --cached --quiet; then echo 'v0.1.6 already applied'; exit 0; fi
+          git commit -m 'feat(connectit): migrate v0.1.6 Master replay defense and client auth staging'
+          git push origin HEAD:refs/heads/migration/connectit-lan-source-20261029

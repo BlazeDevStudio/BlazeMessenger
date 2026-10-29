@@ -1,0 +1,29 @@
+{
+  "release": "ConnectIT v0.1.5 isolated-development checkpoint",
+  "github_mutations": "NONE; repository reorganization in progress",
+  "baseline_pr": "https://github.com/BlazingSystems/BlazingSystems-Experiments/pull/234",
+  "source_base_commit": "70982717496345287ce9f925ecd4a7af3f32eaa8",
+  "implemented": [
+    "Master: authenticated GET /v1/devices/self",
+    "client staging: first device enrollment and Master key-pinned JWT verification",
+    "client staging: SecureBind begin/pending/explicit local-gated decision/finalize"
+  ],
+  "verified": [
+    "Master go vet and unit tests",
+    "Seed go vet and unit tests (unchanged v0.1.4)",
+    "Master client_auth_flow.py live first/second-device enrollment, negative tests, revocation",
+    "v0.1.4 signed two-seed relay smoke, 201 messages",
+    "v0.1.4 node revocation live smoke",
+    "temporary reference two-account E2E dummy"
+  ],
+  "unverified": [
+    "Flutter/Dart analyzer and native APK/Windows builds",
+    "OS-backed private-key and PIN storage",
+    "physical WAN TLS and end-to-end UI",
+    "automatic authenticated directory"
+  ],
+  "notes": [
+    "four-hour SecureBind countdown accelerated only in disposable SQLite regression fixture",
+    "existing original LAN Messenger application and PR #235 untouched"
+  ]
+}

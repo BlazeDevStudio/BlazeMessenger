@@ -1,0 +1,37 @@
+{
+  "checkpoint": "ConnectIT-v0.1.6-dev",
+  "github_mutations": false,
+  "master_source_changed": [
+    "api.go",
+    "main.go",
+    "schema.sql",
+    "device_replay.go",
+    "device_replay_test.go",
+    "tests/device_replay_restart.py"
+  ],
+  "seed_code_changed": false,
+  "flutter_source_changed": false,
+  "verified": {
+    "Master_go_vet": "PASS",
+    "Master_go_unit": "PASS",
+    "Master_linux_amd64_build": "PASS",
+    "Master_SecureBind_integration": "PASS",
+    "Durable_signed_request_replay_after_restart": "PASS (HTTP 409)",
+    "Fresh_proof_after_restart": "PASS (HTTP 200)",
+    "Legacy_v015_DB_schema_migration": "PASS",
+    "Concurrent_nonce_32_callers": "PASS (1 admitted 31 rejected)",
+    "Seed_go_vet_unit": "PASS",
+    "Node_revocation_live": "PASS",
+    "Signed_mesh_201_messages_and_Master_offline": "PASS"
+  },
+  "not_verified": [
+    "Go full -race suite (bounded run timed out)",
+    "Flutter/Dart tests (SDK unavailable)",
+    "physical WAN TLS, OS key storage, PIN verification"
+  ],
+  "limitations": [
+    "SQLite DB rollback is not a monotonic witness",
+    "50k active request nonce cap",
+    "No LAN Messenger production changes"
+  ]
+}
