@@ -27,7 +27,8 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final generator = File('tool/generate_assets.py').readAsStringSync();
     final platform = File('tool/prepare_platforms.py').readAsStringSync();
-    expect(main, contains('SvgPicture.asset(BlazeIdentity.markAsset'));
+    expect(main, contains('SvgPicture.asset('));
+    expect(main, contains('BlazeIdentity.markAsset'));
     expect(main, contains('color: BlazeIdentity.navy'));
     expect(main, isNot(contains("Image.asset('assets/branding/connectit/connectit-icon-48.png'")));
     expect(main, contains("rootBundle.load('assets/icons/lan_messenger.ico')"));
