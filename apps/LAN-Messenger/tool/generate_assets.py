@@ -1,5 +1,6 @@
-"""Generate original, dependency-free LAN Messenger sound and tray resources.
-No third-party media files are bundled. Reproducible with Python stdlib.
+"""Generate original LAN Messenger sound plus verified BlazeDevStudio V3 icons.
+Sound synthesis is Python stdlib; native icons use pinned build-only sharp.
+No private artwork or live network access is needed at generator runtime.
 """
 import math
 import struct

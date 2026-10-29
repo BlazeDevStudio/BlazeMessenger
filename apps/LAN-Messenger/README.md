@@ -19,6 +19,8 @@ No internet, account, phone number, pairing code, scanning, server, or IP config
 
 ```sh
 flutter create --platforms=android,windows --project-name lan_messenger .
+npm install --prefix tool/native-icons --no-package-lock
+python3 tool/generate_assets.py
 python3 tool/prepare_platforms.py
 flutter pub get
 flutter analyze
@@ -91,7 +93,9 @@ This is original preview source, not a SHAREit fork. Dependencies retain their s
 - Windows tray icon and close-to-tray behavior; full exit through tray menu, optional startup at sign-in. Settings control file reception, tones and background behavior.
 - Android opt-in foreground service attempts to keep discovery, chat and receiving available; it requires Android's notification and service permissions. Microphone/video background support varies by OS and is not production-tested.
 
-Build from a clean clone: first run `python tool/generate_assets.py` before `flutter create` and `flutter pub get`. GitHub Actions does this automatically.
+Build from a clean clone: install the pinned build-only icon renderer with
+`npm install --prefix tool/native-icons --no-package-lock`, then run
+`python tool/generate_assets.py` before `flutter create` and `flutter pub get`. GitHub Actions does this automatically.
 
 ## v0.3.0 development acceptance
 
