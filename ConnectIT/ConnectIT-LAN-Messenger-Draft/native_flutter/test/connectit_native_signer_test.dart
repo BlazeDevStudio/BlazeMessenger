@@ -85,4 +85,24 @@ void main() {
     );
     expect(store.record, isNull);
   });
+  test('two independent credential-store objects cannot race identity setup',
+      () async {
+    final secure = MemorySecrets();
+    final first = ConnectITNativeCredentialStore(secure);
+    final second = ConnectITNativeCredentialStore(secure);
+    final results = await Future.wait([
+      first.loadOrCreate(),
+      second.loadOrCreate(),
+    ]);
+    expect(secure.writes, 1);
+    expect(results.first.publicKeyBase64, results.last.publicKeyBase64);
+    expect(results.first.installationId, results.last.installationId);
+    final restarted = await ConnectITNativeCredentialStore(secure).loadOrCreate();
+    expect(restarted.publicKeyBase64, results.first.publicKeyBase64);
+    expect(restarted.installationId, results.first.installationId);
+    results.first.dispose();
+    results.last.dispose();
+    restarted.dispose();
+  });
+
 }
