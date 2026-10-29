@@ -30,7 +30,7 @@ void main() {
       expect(root, contains(script));
       final scriptSource =
           File('../../.github/scripts/lan-messenger/' + script).readAsStringSync();
-      expect(scriptSource, contains('source "$ROOT/apps/LAN-Messenger/tool/android_dual_lan_smoke.sh"'));
+      expect(scriptSource, contains(r'source "$ROOT/apps/LAN-Messenger/tool/android_dual_lan_smoke.sh"'));
       expect(scriptSource, isNot(contains('experiment/apps/LAN-Messenger')));
     }
   });
@@ -38,7 +38,7 @@ void main() {
   test('two-peer LAN verification remains mandatory before voice and video tests', () {
     final shell = File('tool/android_dual_lan_smoke.sh').readAsStringSync();
     expect(shell, contains('assert "Online" in displayed'));
-    expect(shell, contains('if [[ "$both" == "1" ]]; then success=1; break; fi'));
+    expect(shell, contains(r'if [[ "$both" == "1" ]]; then success=1; break; fi'));
     expect(shell, contains('exit 1'));
     expect(shell, contains('tool/emulator_launcher_anr.py'));
     expect(shell, isNot(contains('experiment/apps/LAN-Messenger')));
