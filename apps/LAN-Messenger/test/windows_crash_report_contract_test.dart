@@ -13,13 +13,13 @@ void main() {
     expect(script, contains('"P4"'));
     expect(script, contains('"P7"'));
     expect(script, contains('"P8"'));
-    expect(script, contains('if ($null -eq $wer) { continue }'));
+    expect(script, contains(r'if ($null -eq $wer) { continue }'));
     expect(script, contains('function Get-SafeModuleName('));
     expect(script, contains('function Get-SafeHex('));
-    expect(script, contains('FaultingModule = (Get-SafeModuleName $module)'));
-    expect(script, contains('ExceptionCode = (Get-SafeHex $code)'));
-    expect(script, contains('FaultOffset = (Get-SafeHex $offset)'));
-    expect(script, contains('ContainsRawEventMessagesOrDumps = $false'));
+    expect(script, contains(r'FaultingModule = (Get-SafeModuleName $module)'));
+    expect(script, contains(r'ExceptionCode = (Get-SafeHex $code)'));
+    expect(script, contains(r'FaultOffset = (Get-SafeHex $offset)'));
+    expect(script, contains(r'ContainsRawEventMessagesOrDumps = $false'));
     expect(script, contains('WER 1001 APPCRASH parser regression'));
     expect(script, contains('WER app identity and privacy checks regression'));
   });
