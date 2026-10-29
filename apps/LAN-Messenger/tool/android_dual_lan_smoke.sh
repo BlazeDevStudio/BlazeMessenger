@@ -98,7 +98,7 @@ for attempt in $(seq 1 10); do
     # its exact "Close app" button in UiAutomator's real XML coordinates.
     # No discovery acceptance is credited until the peer row is visible again.
     if grep -Fq "Pixel Launcher isn't responding" "$OUT/$serial-hierarchy.xml"; then
-      coords="$(python3 "$ROOT/experiment/apps/LAN-Messenger/tool/emulator_launcher_anr.py" \
+      coords="$(python3 "$ROOT/apps/LAN-Messenger/tool/emulator_launcher_anr.py" \
           "$OUT/$serial-hierarchy.xml" || true)"
       if [[ "$coords" =~ ^[0-9]+[[:space:]][0-9]+$ ]]; then
         read -r close_x close_y <<<"$coords"
