@@ -9,9 +9,12 @@ in the private ConnectIT Development Google Drive folder (file ID
 `17_O8TXNQ3ZgSAoRfFmqPjqOQclIISCir`). The source is original artwork,
 not a redrawn approximation. Original file fingerprints are covered by tests.
 
-The Flutter app bar, Windows tray, executable icon and Android launcher
-icons use the supplied artwork. The old CI-generated Windows pixel bubble
-has been retired from the generator.
+The Flutter app bar **historically** used ConnectIT artwork. A separate V3
+BlazeDevStudio parent-brand integration now anchors the **Flutter app header**
+to the verified sculpted blue B / ruby HUD, while the original ConnectIT
+assets remain immutable and are still used in Windows tray/EXE and Android
+launcher/adaptive icons. No native launcher or signing change is claimed.
+The old CI-generated Windows pixel bubble remains retired.
 
 This is a logo-only integration. LAN Messenger retains its local identity,
 package name, offline LAN communication, and existing call/file architecture.
