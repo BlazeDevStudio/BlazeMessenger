@@ -82,7 +82,21 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
 
   Future<void> _perform(Future<void> Function() action) async {
     if (_busy) return;
-    setState(() { _busy = true; _message = 'Contacting Master…'; });
+    // A new authentication attempt invalidates earlier authority immediately,
+    // including when local validation or native secure storage subsequently fails.
+    // Never leave the previous approval session available after a failed retry.
+    final oldAuth = _auth;
+    final oldSigner = _signer;
+    setState(() {
+      _busy = true;
+      _message = 'Contacting Master…';
+      _session = null;
+      _own = null;
+      _auth = null;
+      _signer = null;
+    });
+    oldAuth?.close();
+    oldSigner?.dispose();
     try {
       await action();
     } on ConnectITMasterException catch (error) {
@@ -120,14 +134,12 @@ class _ConnectITMasterSetupPageState extends State<ConnectITMasterSetupPage> {
     );
     try {
       final store = ConnectITNativeCredentialStore(_secureStore);
-      final signer = _signer ?? await (existingOnly
+      // Even inside one still-running process, re-read the OS-backed record.
+      // A deleted/corrupted identity must never be bypassed by a cached signer.
+      final signer = await (existingOnly
           ? store.loadExisting()
           : store.loadOrCreate());
-      // A changed server/account must never inherit an old verified session.
-      _session = null;
-      _own = null;
       _signer = signer;
-      _auth?.close();
       _auth = client;
     } catch (_) {
       client.close();
