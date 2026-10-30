@@ -234,7 +234,12 @@ class MainActivity : FlutterActivity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun eventChannel(event: String): String = "lan_v026_" + event
+    // Android notification-channel sound is immutable once first created.
+    // v026 call channels may already hold the OS default ring from earlier
+    // previews; upgrade ONLY incoming-call channels to our packaged WAV,
+    // leaving message/file channels and user-customized settings untouched.
+    private fun eventChannel(event: String): String =
+        (if (event == "call" || event == "video_call") "lan_v029_" else "lan_v026_") + event
 
     private fun createChannel(event: String) {
         if (Build.VERSION.SDK_INT < 26) return
