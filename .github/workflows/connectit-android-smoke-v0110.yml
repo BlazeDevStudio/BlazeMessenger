@@ -49,7 +49,7 @@ jobs:
           OUT="$ROOT/android_smoke_build"
           flutter create --platforms=android --project-name connectit_android_smoke --org com.blazedevstudio "$OUT"
           cp "$SRC/pubspec.yaml" "$OUT/pubspec.yaml"
-          cp "$SRC/lib/main.dart" "$OUT/lib/main.dart"
+          cp "$SRC/lib/"*.dart "$OUT/lib/"
           rm -rf "$OUT/test"
           mkdir -p "$OUT/test" "$OUT/assets/brand"
           cp "$SRC/test/"*.dart "$OUT/test/"
