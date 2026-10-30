@@ -59,7 +59,11 @@ void main() {
           remote.onChat = (_, message) => received = message.text;
           await local.sendMessage(stale, 'Current port only');
           expect(received, 'Current port only');
-          expect(local.isOnline(current), isTrue);
+          expect(local.peers[current.id]?.key, current.key);
+          expect(local.peers[current.id]?.port, remote.listenPort);
+          // Real multicast can replace 127.0.0.1 with an advertised NIC
+          // while the HTTP response is in flight. That NEW endpoint stays
+          // unverified until an outbound ping reaches it.
         } finally {
           await local.dispose();
           await remote.dispose();
