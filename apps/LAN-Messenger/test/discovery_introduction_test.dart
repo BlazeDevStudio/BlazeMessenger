@@ -43,6 +43,9 @@ void main() {
           expect(learned, isNotNull);
           expect(learned!.key, b.identity.publicKeyB64);
           expect(learned.name, 'Android B');
+          expect(a.isOnline(learned), isFalse,
+              reason: 'Authenticated incoming request alone does not verify the reverse TCP path');
+          expect(await a.introduceDiscoveredPeer(learned), isTrue);
           expect(a.isOnline(learned), isTrue);
         } finally {
           await a.dispose();
@@ -96,7 +99,7 @@ void main() {
     expect(end, greaterThan(start));
     final handler = source.substring(start, end);
     expect(handler, contains('Peer.fromDiscovery(decoded, packet.address.address)'));
-    expect(handler, contains('if (old == null && _udp != null)'));
+    expect(handler, contains('if ((old == null || endpointChanged) && _udp != null)'));
     expect(handler, contains('unawaited(introduceDiscoveredPeer(peer));'));
     expect(source, contains('maxConcurrentPeerIntroductions = 4'));
     expect(source, contains('peers[peer.id]?.port != peer.port'));
