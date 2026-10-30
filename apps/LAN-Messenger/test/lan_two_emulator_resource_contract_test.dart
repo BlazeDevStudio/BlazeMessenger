@@ -30,7 +30,7 @@ void main() {
     expect(dual, contains("'hw.cpu.ncore': '2'"));
     expect(dual, contains('-gpu software'));
     expect(dual, contains('Android two-emulator LAN discovery: NOT CONFIRMED.'));
-    expect(dual, contains('if [[ "$success" == 1 ]]'));
+    expect(dual, contains('if [[ "\$success" == 1 ]]'));
     for (final name in ['voice', 'video', 'peer_death']) {
       final path = '../../.github/scripts/lan-messenger/run_dual_android_${name}_e2e.sh';
       expect(File(path).readAsStringSync(), contains('dual_android_call_ui.py'),
