@@ -1,0 +1,41 @@
+name: LAN Messenger - Docker authenticated TCP liveness
+
+on:
+  push:
+    paths:
+      - 'apps/LAN-Messenger/lib/src/node.dart'
+      - 'apps/LAN-Messenger/test/liveness_endpoint_test.dart'
+      - 'apps/LAN-Messenger/test/discovery_introduction_test.dart'
+      - 'apps/LAN-Messenger/test/asymmetric_discovery_test.dart'
+      - '.github/workflows/lan-messenger-docker-network.yml'
+  pull_request:
+    paths:
+      - 'apps/LAN-Messenger/lib/src/node.dart'
+      - 'apps/LAN-Messenger/test/liveness_endpoint_test.dart'
+      - 'apps/LAN-Messenger/test/discovery_introduction_test.dart'
+      - 'apps/LAN-Messenger/test/asymmetric_discovery_test.dart'
+      - '.github/workflows/lan-messenger-docker-network.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-loopback-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Actual encrypted TCP discovery and stale endpoint regression in Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Isolated container network namespace, not a mock/test protocol.
+          # All real HTTP servers and TCP clients run inside one container,
+          # using distinct real listeners and the actual encrypted protocol.
+          docker run --rm --network bridge \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace/apps/LAN-Messenger \
+            -e CI=true \
+            ghcr.io/cirruslabs/flutter:stable \
+            sh -c 'flutter --version && flutter pub get && flutter test --reporter expanded test/liveness_endpoint_test.dart test/discovery_introduction_test.dart test/asymmetric_discovery_test.dart'
