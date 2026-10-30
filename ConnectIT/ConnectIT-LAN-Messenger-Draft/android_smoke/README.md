@@ -1,6 +1,19 @@
-# ConnectIT — Android acceptance app (v0.1.10 development)
+# ConnectIT — Android authentication acceptance app (v0.1.12 development)
 
 Independent Android-only test host for existing ConnectIT Master API, v0.1.6 SQLite replay gate, v0.1.7 OS-backed signer, v0.1.8 local PIN and v0.1.9 SecureBind review UI. This does NOT modify LAN Messenger, and its Android debug APK is NOT a production build.
+
+## Source layout and ownership
+
+- `lib/main.dart`: minimal Flutter entrypoint, top-level app theme and the publicly imported `ConnectITAcceptanceApp`.
+- `lib/device_access_page.dart`: development-only device-access screen, explicit user actions and the single session-verification boundary; it does not implement transport, signing or Master policy.
+- `../lib/connectit/master_auth_client.dart`: HTTPS/loopback Master protocol, signed certificate verification and authenticated requests.
+- `../native_flutter/lib/connectit_native_signer.dart`: OS-protected identity storage and Ed25519 signing. Returning login only calls `loadExisting()`.
+- `../native_flutter/lib/connectit_securebind_*.dart`: local approval UI, PIN gate and request checking.
+- `integration_test/`: native Android secure-store and disposable Master lifecycle checks.
+
+CI runs `flutter create` into an ephemeral `android_smoke_build/` directory and copies **every** `lib/*.dart` source file into its generated Android host. Do not revert this to copying only `main.dart` when adding new modules. Never check generated Android app artifacts or private keys into this tree.
+
+This package is an independent *authentication acceptance app*, not an integrated ConnectIT messaging client or production APK. Code-quality changes are developed separately from behavioral bug fixes and are validated at their own exact commit before promotion.
 
 ## Branding — approved source of truth
 
