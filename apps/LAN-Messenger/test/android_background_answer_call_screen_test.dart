@@ -37,7 +37,11 @@ void main() {
     expect(app, contains('String? _autoPipAnswerSession;'));
     expect(app, contains("data['wasBackground'] == true"));
     expect(app, contains('_autoPipAnswerSession = id;'));
-    expect(app, contains('if (video && _autoPipAnswerSession == id &&'));
+    expect(
+      RegExp(r'if\s*\(\s*video\s*&&\s*_autoPipAnswerSession\s*==\s*id\s*&&')
+          .hasMatch(app),
+      isTrue,
+    );
     expect(app, contains('await WidgetsBinding.instance.endOfFrame;'));
     expect(app, contains('await _enterPipVideo();'));
     expect(app, contains('_autoPipAnswerSession = null;'));
