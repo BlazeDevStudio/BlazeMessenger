@@ -31,4 +31,38 @@ void main() {
     expect(finalized, contains('_callMinimized = false;'));
     expect(finalized, contains('selected = peer;'));
   });
+  test('background Answer queues only that video session for PiP after media ready', () {
+    final app = File('lib/main.dart').readAsStringSync();
+    final native = File('tool/AndroidMainActivity.kt').readAsStringSync();
+    expect(app, contains('String? _autoPipAnswerSession;'));
+    expect(app, contains("data['wasBackground'] == true"));
+    expect(app, contains('_autoPipAnswerSession = id;'));
+    expect(app, contains('if (video && _autoPipAnswerSession == id &&'));
+    expect(app, contains('await WidgetsBinding.instance.endOfFrame;'));
+    expect(app, contains('await _enterPipVideo();'));
+    expect(app, contains('_autoPipAnswerSession = null;'));
+    expect(native, contains('"wasBackground" to true'));
+    expect(native, contains('pipEnabledForCall = video'));
+    expect(native, contains('setAutoEnterEnabled(video)'));
+    expect(native, contains('enterPictureInPictureMode(params)'));
+    // No app-owned draw-over-other-apps window is allowed.
+    expect(native, isNot(contains('WindowManager.addView')));
+  });
+
+  test('incoming Android calls use app-provided audio resource via fresh channel', () {
+    final native = File('tool/AndroidMainActivity.kt').readAsStringSync();
+    final installer = File('tool/prepare_platforms.py').readAsStringSync();
+    expect(native, contains('lan_v029_'));
+    expect(native, contains('lan_v026_'));
+    expect(native, contains('channel.setSound(Uri.parse('));
+    expect(native, contains('AudioAttributes.USAGE_NOTIFICATION_RINGTONE'));
+    expect(native, contains('if (notifications.getNotificationChannel(id) != null) return'));
+    expect(installer, contains("for key in ('call','video_call','message','file')"));
+    expect(installer, contains("shutil.copy2(source, raw / (key+'.wav'))"));
+    final tones = Directory('assets/sounds');
+    for (final name in ['call.wav', 'video_call.wav']) {
+      expect(File('${tones.path}/$name').existsSync(), isTrue);
+    }
+  });
+
 }
