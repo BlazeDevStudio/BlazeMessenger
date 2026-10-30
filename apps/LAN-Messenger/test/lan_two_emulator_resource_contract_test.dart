@@ -7,15 +7,18 @@ void main() {
     final workflow = File('../../.github/workflows/lan-messenger-sync.yml')
         .readAsStringSync();
     final dual = File('tool/android_dual_lan_smoke.sh').readAsStringSync();
-    for (final job in [
-      'android-pair-lan:',
-      'android-pair-video:',
-      'android-peer-process-death:'
-    ]) {
+    const jobs = {
+      'android-pair-lan:': 'android-pair-video:',
+      'android-pair-video:': 'android-peer-process-death:',
+      'android-peer-process-death:': 'windows:'
+    };
+    for (final pair in jobs.entries) {
+      final job = pair.key;
       final at = workflow.indexOf('\n  $job');
       expect(at, greaterThan(0), reason: job);
-      final next = workflow.indexOf('\n  ', at + 3);
-      final section = workflow.substring(at, next < 0 ? workflow.length : next);
+      final end = workflow.indexOf('\n  ${pair.value}', at + 3);
+      expect(end, greaterThan(at), reason: job);
+      final section = workflow.substring(at, end);
       expect(section, contains('ram-size: 1536M'), reason: job);
       expect(section, contains('heap-size: 256M'), reason: job);
       expect(section, contains('-gpu software'), reason: job);
