@@ -1519,8 +1519,18 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
       return;
     }
     _callMinimized = false;
-    try { await intercom!.call(peer, withVideo: video); }
-    catch (e) { _toast('Could not start call: $e'); }
+    try {
+      await intercom!.call(peer, withVideo: video);
+    } on SocketException {
+      // The discovery UDP packet may still arrive after Android's TCP
+      // listener has stopped. Do not present a refused port as "Online".
+      node?.markPeerUnreachable(peer);
+      _toast('The peer refused the LAN call connection. Open LAN Messenger '
+          'on the other device, verify background availability and check '
+          'the firewall or Wi-Fi isolation.');
+    } catch (e) {
+      _toast('Could not start call: $e');
+    }
   }
 
   Future<void> _renameDevice() async {
