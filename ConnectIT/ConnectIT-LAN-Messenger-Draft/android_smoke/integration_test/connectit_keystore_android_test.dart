@@ -62,6 +62,13 @@ void main() {
         expect(stored['failed_attempts'], 1);
         expect(await secondGate.verifyForApproval(
           pin: testPin, userConfirmed: true), isTrue);
+        // A previously loaded in-memory signer is NOT enough: a later
+        // returning login must reject an OS-backed identity deleted mid-run.
+        await storage.delete(key: idKey);
+        await expectLater(ConnectITNativeCredentialStore(real).loadExisting(),
+            throwsStateError);
+        expect(await storage.read(key: idKey), isNull);
+        // Corruption also must not silently regenerate a fresh identity.
         await storage.write(key: idKey, value: '{"damaged":true}');
         await expectLater(ConnectITNativeCredentialStore(
             FlutterConnectITSecretStore()).loadExisting(),
