@@ -1,8 +1,8 @@
-# LAN Messenger (BlazingSystems) — v0.3.3 call-liveness hotfix preview
+# LAN Messenger (BlazingSystems) — Windows & Android development preview
 
-**Release candidate source:** built from v0.3.0 follow-up fixes. This remains a
-field-test preview, **not production-certified**. Review the companion
-`RELEASE_NOTES_v0.3.3-preview.1.md` for exact claims and blockers.
+**Active draft development source:** the prior versioned preview notes remain
+historical; this branch is not an approved release. Windows, Android and Docker
+builds alone do not certify native call stability or device security.
 
 **Independent project:** a clean-room LAN messenger, file sender, and audio intercom influenced by SHAREit's ease of file sharing, not its proprietary code or assets.
 
@@ -36,7 +36,7 @@ GitHub Actions compiles release-mode Android APKs (debug-key signed, not permane
 - P2P local HTTP listener on an ephemeral TCP port, advertised through the discovery packet.
 - X25519 shared secret + HKDF-SHA256 + AES-256-GCM for chat, call signaling, file offers, and encrypted file chunks. Device ID is SHA-256 of its static X25519 public key; no external PKI or cloud relay.
 - Text messaging, photos and files as persistent conversation bubbles, file picker within the conversation, open-file action, automatic receive with 512 MB per-file / four-concurrent-transfer limits, chunked transfers, retries, SHA-256 check, and app-private `Received` folder.
-- One-to-one audio/video calling via WebRTC using **LAN host candidates only**, no public STUN or TURN. Native background-only Answer/Decline via Windows Win32 toast or optional Android system overlay/CallStyle notification; video PiP is an ongoing-call feature.
+- One-to-one audio/video calling via WebRTC using **LAN host candidates only**, no public STUN or TURN. Native background-only Answer/Decline via Windows Win32 toast or Android CallStyle notification; system video PiP is an ongoing-call feature.
 - Experimental LAN group chat (3–8 members) with local history, and 3–4-person group voice/video mesh. Each participant must accept an invitation; one camera/microphone capture is reused across links for a group session.
 - Large touch targets, readable text, automatic hostname-based device name, optional rename (e.g. PC-03), clear declined/connection feedback, incoming-call alert sound, unanswered-call timeout.
 
@@ -99,7 +99,7 @@ Build from a clean clone: install the pinned build-only icon renderer with
 
 ## v0.3.0 development acceptance
 
-- Incoming call **foreground**: in-app Answer/Decline only. **Windows minimized/tray**: separate small draggable Win32 toast near the taskbar clock, not a Flutter child popup. **Android background**: opt-in system overlay (Display over other apps) and CallStyle notification fallback; notification Answer is delivered to Flutter after a matching incoming offer is ready. Android video PiP is for connected video, not a ringing audio call.
+- Incoming call **foreground**: in-app Answer/Decline only. **Windows minimized/tray**: separate small draggable Win32 toast near the taskbar clock, not a Flutter child popup. **Android background**: system-managed CallStyle notifications with Answer/Decline, not a Draw Over Other Apps overlay. Notification Answer restores the Activity for consented capture, then connected video may enter OS-managed PiP. Android video PiP is for connected video, not a ringing audio call.
 - The Android emulator smoke includes a HOME → Answer Activity resume with a deliberately stale call ID and a repeated tap; this checks for native Activity termination, **not** a real call.
 - Group camera/mic is captured once and shared across room peer connections, then released on leave. Group video previews the local camera and remote participant streams as available. Group chat uses authenticated LAN peers, with no central server.
 - **Unverified:** answering between physical Windows/Android devices, OS-specific camera/audio permission edge cases, minimized Windows toast behavior in a running game, and 3–4 person synchronized voice/video quality. These require real-device field testing; passing CI cannot replace it.
