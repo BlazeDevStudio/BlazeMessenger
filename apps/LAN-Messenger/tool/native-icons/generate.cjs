@@ -7,7 +7,8 @@ const path = require('node:path');
 const sharp = require('sharp');
 const app = path.resolve(__dirname, '../..');
 const source = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark.svg');
-const compact = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark-compact.svg');
+// The compact SVG remains an editable alternate in the asset bundle, but the
+// shipping Windows tray/taskbar and Android launcher must share ONE mark.
 const transparent = path.join(app, 'assets/branding/blazedevstudio-v3/lan-messenger-mark-transparent.svg');
 const dest = path.join(app, 'assets/icons');
 
@@ -35,9 +36,8 @@ async function main() {
   const sizes = [16,24,32,48,64,72,96,128,144,192,256,512];
   const rendered = new Map();
   for (const size of sizes) {
-    // At tray size 16-32px, use the simplified three-node glyph.
-    const svg = size <= 32 ? compact : source;
-    const bytes = await sharp(svg, {density: 288})
+    // Use identical source geometry at EVERY native size on both platforms.
+    const bytes = await sharp(source, {density: 288})
       .resize(size, size, {fit: 'fill'}).png().toBuffer();
     await fs.writeFile(path.join(dest, `v3-icon-${size}.png`), bytes);
     rendered.set(size, bytes);
