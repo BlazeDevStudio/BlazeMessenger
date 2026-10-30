@@ -53,6 +53,9 @@ class LanNode {
   Timer? _ticker;
   final Map<String, Peer> peers = {};
   final Set<String> _unreachablePeers = {};
+  // UDP discovery is only a claim of a peer, NOT proof that its TCP listener
+  // accepts calls. An authenticated outbound response admits Online status.
+  final Map<String, DateTime> _verifiedEndpoints = {};
   final Set<String> _peerIntroductionsPending = {};
   static const int maxConcurrentPeerIntroductions = 4;
   final Map<String, _ReceiveState> _incoming = {};
@@ -85,6 +88,8 @@ class LanNode {
   static const int maxConcurrentIncoming = 4;
   bool _checkingPeers = false;
   bool isOnline(Peer peer) =>
+      peers[peer.id]?.key == peer.key &&
+      _verifiedEndpoints.containsKey(peer.id) &&
       !_unreachablePeers.contains(peer.id) &&
       DateTime.now().difference(peers[peer.id]?.seen ?? peer.seen) < peerOnlineWindow;
   /// A failed authenticated call heartbeat overrides a stale UDP presence.
@@ -93,13 +98,15 @@ class LanNode {
     if (peers[peer.id]?.key != peer.key) return;
     if (_unreachablePeers.add(peer.id)) onPeersChanged?.call();
   }
-  void _markSeen(Peer peer) {
+  void _markSeen(Peer peer, {bool verifiedOutbound = false}) {
     final old = peers[peer.id];
-    if (old == null || old.key != peer.key) return;
-    final wasUnreachable = _unreachablePeers.remove(peer.id);
+    if (old == null || old.key != peer.key ||
+        old.host != peer.host || old.port != peer.port) return;
+    final recovered = verifiedOutbound && _unreachablePeers.remove(peer.id);
+    if (verifiedOutbound) _verifiedEndpoints[peer.id] = DateTime.now();
     peers[peer.id] = Peer(id: old.id, name: old.name, key: old.key,
         host: old.host, port: old.port, seen: DateTime.now());
-    if (wasUnreachable) onPeersChanged?.call();
+    if (verifiedOutbound || recovered) onPeersChanged?.call();
   }
   /// Complete one-way UDP discovery using the existing authenticated HTTP
   /// ping. The receiving node can introduce its identity to a sender that
@@ -135,14 +142,22 @@ class LanNode {
     if (_checkingPeers) return;
     _checkingPeers = true;
     try {
+      final now = DateTime.now();
       final old = peers.values.where((p) =>
-          DateTime.now().difference(p.seen) > const Duration(seconds: 9)).toList();
+          _verifiedEndpoints[p.id] == null ||
+          now.difference(_verifiedEndpoints[p.id]!) >
+              const Duration(seconds: 12) ||
+          _unreachablePeers.contains(p.id)).toList();
       await Future.wait(old.take(16).map((peer) async {
         try {
           final reply = await _event(peer, {'kind': 'ping'}).timeout(
               const Duration(seconds: 3));
           if (reply['ok'] == true) _markSeen(peer);
-        } catch (_) { /* Stale peers remain known, but appear offline. */ }
+        } catch (_) {
+          // Discovery packets can keep arriving after Android background
+          // restrictions or a restart close its local HTTP listener.
+          markPeerUnreachable(peer);
+        }
       }));
     } finally { _checkingPeers = false; }
   }
@@ -256,11 +271,13 @@ class LanNode {
       final old = peers[peer.id];
       // Never allow a different public key to replace a pinned identity.
       if (old != null && old.key != peer.key) return;
+      final endpointChanged = old != null &&
+          (old.host != peer.host || old.port != peer.port);
+      if (endpointChanged) _verifiedEndpoints.remove(peer.id);
       peers[peer.id] = peer;
-      if (old == null || old.host != peer.host || old.port != peer.port ||
-          old.name != peer.name) {
+      if (old == null || endpointChanged || old.name != peer.name) {
         onPeersChanged?.call();
-        if (old == null && _udp != null) {
+        if ((old == null || endpointChanged) && _udp != null) {
           // Respond once to a new unicast discovery sender using its NAT
           // source port, instead of assuming its source UDP port is 39823.
           try {
@@ -343,11 +360,17 @@ class LanNode {
 
   Future<Map<String, dynamic>> _post(Peer peer, String path, List<int> body,
       {Duration timeout = const Duration(seconds: 15)}) async {
-    final packet = await cipher.seal(peer.key, body);
+    // A chat tile may hold an older Peer object after Android rebinds its
+    // ephemeral listener. Resolve from the currently pinned discovery record.
+    final current = peers[peer.id];
+    if (current == null || current.key != peer.key) {
+      throw StateError('Peer identity changed or is unavailable');
+    }
+    final packet = await cipher.seal(current.key, body);
     // Reply address lets new peers join even when UDP discovery is one-way.
     packet['replyName'] = identity.displayName;
     packet['replyPort'] = _server?.port;
-    final request = await _http.postUrl(peer.uri(path)).timeout(timeout);
+    final request = await _http.postUrl(current.uri(path)).timeout(timeout);
     request.headers.contentType = ContentType.json;
     request.add(utf8.encode(jsonEncode(packet)));
     final response = await request.close().timeout(timeout);
@@ -356,9 +379,9 @@ class LanNode {
       throw HttpException('Peer rejected request: ${response.statusCode}');
     }
     final reply = jsonDecode(raw) as Map<String, dynamic>;
-    if (reply['from'] != peer.key) throw const FormatException('Untrusted response');
+    if (reply['from'] != current.key) throw const FormatException('Untrusted response');
     final opened = jsonDecode(utf8.decode(await cipher.open(reply))) as Map<String, dynamic>;
-    _markSeen(peer);
+    _markSeen(current, verifiedOutbound: true);
     return opened;
   }
 
