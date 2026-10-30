@@ -5,6 +5,13 @@ import 'package:flutter/material.dart';
 abstract final class BlazeIdentity {
   static const String markAsset =
       'assets/branding/blazedevstudio-v3/main-hud-transparent.svg';
+  /// App-specific mark; the official parent markAsset remains unchanged.
+  static const String lanMarkAsset =
+      'assets/branding/blazedevstudio-v3/lan-messenger-mark-transparent.svg';
+  static const String lanNativeMarkAsset =
+      'assets/branding/blazedevstudio-v3/lan-messenger-mark.svg';
+  static const String lanCompactMarkAsset =
+      'assets/branding/blazedevstudio-v3/lan-messenger-mark-compact.svg';
   static const String networkAsset =
       'assets/branding/blazedevstudio-v3/sublogo-network.svg';
   static const Color navy = Color(0xFF0B1427);

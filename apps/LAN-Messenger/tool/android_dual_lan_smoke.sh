@@ -15,7 +15,22 @@ AVD_MANAGER="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/avdmana
 if [[ ! -x "$AVD_MANAGER" ]]; then AVD_MANAGER="$(command -v avdmanager)"; fi
 if [[ ! -x "$AVD_MANAGER" ]]; then echo "avdmanager unavailable"; exit 1; fi
 echo no | "$AVD_MANAGER" create avd -n lan_peer2 -k 'system-images;android-35;google_apis;x86_64' --device pixel_2 --force
-"$EMULATOR" -avd lan_peer2 -port 5556 -no-window -gpu swiftshader_indirect \
+# Android Emulator 37 defaults Pixel2 to 2560MB. Limit both guests to
+# 1536MB (matching the runner primary) while keeping OS/app testing real.
+python3 - "$HOME/.android/avd/lan_peer2.avd/config.ini" <<'PYAVD'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines()
+settings = {'hw.ramSize': '1536', 'vm.heapSize': '256', 'hw.cpu.ncore': '2'}
+lines = [line for line in lines if line.partition('=')[0] not in settings]
+path.write_text('\n'.join(lines + [f'{k}={v}' for k, v in settings.items()]) + '\n')
+print('Second AVD resource budget:', settings)
+PYAVD
+echo 'Host available RAM and shared memory before launching second Android:'
+free -m || true
+df -h /dev/shm || true
+"$EMULATOR" -avd lan_peer2 -port 5556 -no-window -gpu software \
   -no-snapshot -no-boot-anim -camera-front emulated >"$OUT/emulator-peer2.log" 2>&1 &
 SECOND_PID=$!
 cleanup() {
