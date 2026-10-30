@@ -2,6 +2,11 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart' as digest;
 
+// Keep public Peer and ChatMessage types exported through protocol.dart.
+// Separate models from wire-format helpers without changing the v1 protocol.
+part 'protocol/peer.dart';
+part 'protocol/chat_message.dart';
+
 const int discoveryPort = 39823;
 const String multicastIp = '239.42.61.77';
 const int chunkSize = 65536;
@@ -27,10 +32,6 @@ String safeFileName(String input) {
 }
 
 
-// Keep public Peer and ChatMessage types exported through protocol.dart.
-// Separate models from wire-format helpers without changing the v1 protocol.
-part 'protocol/peer.dart';
-part 'protocol/chat_message.dart';
 
 String announcement(String id, String name, String publicKey, int port) => jsonEncode({
   'app': 'lan-messenger', 'v': protocolVersion,
