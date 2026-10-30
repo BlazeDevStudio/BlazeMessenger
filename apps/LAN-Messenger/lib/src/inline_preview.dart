@@ -215,6 +215,11 @@ Future<String> previewDocument(File file, String ext) async {
     raw = await file.readAsString();
   } on FormatException {
     return 'This document is not UTF-8 encoded.';
+  } on FileSystemException catch (error) {
+    // File.readAsString reports invalid UTF-8 as FileSystemException on Dart.
+    // Other I/O failures must still reach the preview error view.
+    if (!error.message.contains('decode')) rethrow;
+    return 'This document is not UTF-8 encoded.';
   }
   const limit = 24000;
   if (raw.length <= limit) return raw;
