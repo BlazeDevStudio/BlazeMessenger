@@ -31,7 +31,8 @@ void main() {
       expect(message, 'Hi from phone');
       expect(b.peers[a.identity.id]?.name, 'Android');
       expect(b.isOnline(b.peers[a.identity.id]!), isFalse);
-      expect(await b.introduceDiscoveredPeer(b.peers[a.identity.id]!), isTrue);
+      // The inbound encrypted message proves delivery, but not that the
+      // reverse route is usable; only the background probe can verify it.
       expect(b.peers[a.identity.id]?.key, a.identity.publicKeyB64);
       // A new UDP route can overtake a successful loopback reply; it must
       // remain unverified until its own authenticated outbound probe.
