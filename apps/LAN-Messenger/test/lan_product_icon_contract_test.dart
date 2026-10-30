@@ -20,6 +20,7 @@ void main() {
     expect(ui, contains('BlazeIdentity.lanMarkAsset'));
     expect(ui, isNot(contains('SvgPicture.asset(BlazeIdentity.markAsset')));
     final generator = File('tool/native-icons/generate.cjs').readAsStringSync();
-    expect(generator, contains('size <= 32 ? compact : source'));
+    expect(generator, contains('sharp(source, {density: 288})'));
+    expect(generator, isNot(contains('size <= 32 ? compact : source')));
   });
 }
