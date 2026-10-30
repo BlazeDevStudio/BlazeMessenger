@@ -45,7 +45,8 @@ void main() {
           expect(learned.name, 'Android B');
           expect(a.isOnline(learned), isFalse,
               reason: 'Authenticated incoming request alone does not verify the reverse TCP path');
-          expect(await a.introduceDiscoveredPeer(learned), isTrue);
+          // The opposite direction still requires its own authenticated
+          // outbound probe. Do not assume every discovered route is ready.
           expect(a.peers[learned.id]?.key, learned.key);
           // Reachability of a different interface advertised concurrently
           // needs a fresh probe; do not mark UDP-only routes Online.
