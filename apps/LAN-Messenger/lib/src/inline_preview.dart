@@ -169,13 +169,25 @@ Future<String> previewDocument(File file, String ext) async {
   if (!const <String>{'txt', 'md', 'log', 'csv', 'json', 'xml'}.contains(ext)) {
     return 'No faithful inline preview is available. Open in another application.';
   }
-  final length = await file.length();
-  if (length > 8 * 1024 * 1024) {
+  // Never decode giant received files to build an on-screen text preview.
+  if (await file.length() > 8 * 1024 * 1024) {
     return 'File exceeds the 8 MB text preview limit. Open externally.';
   }
-  final raw = await file.readAsString().catchError(
-      (_) => 'This document is not UTF-8 encoded.');
-  return raw.length > 24000
-      ? '${raw.substring(0,24000)}\\n… Preview truncated'
-      : raw;
+  final String raw;
+  try {
+    raw = await file.readAsString();
+  } on FormatException {
+    return 'This document is not UTF-8 encoded.';
+  }
+  const limit = 24000;
+  if (raw.length <= limit) return raw;
+  // Dart indices are UTF-16 code units; avoid leaving half an emoji at the end.
+  var end = limit;
+  final last = raw.codeUnitAt(end - 1);
+  final next = raw.codeUnitAt(end);
+  if (last >= 0xD800 && last <= 0xDBFF &&
+      next >= 0xDC00 && next <= 0xDFFF) {
+    --end;
+  }
+  return '${raw.substring(0, end)}\n… Preview truncated';
 }
