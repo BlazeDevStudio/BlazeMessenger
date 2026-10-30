@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# Intermediate commits must not launch competing multi-GB container pulls.
+concurrency:
+  group: lan-docker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   real-loopback-docker:
     runs-on: ubuntu-latest
