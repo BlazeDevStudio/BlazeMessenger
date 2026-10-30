@@ -85,6 +85,9 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
   bool _nativeIncomingAvailable = false;
   bool _inForeground = true;
   bool _androidInPip = false;
+  // A user explicitly answered a video call from another app. Once media
+  // is actually connected, return to that app with system PiP (not overlay).
+  String? _autoPipAnswerSession;
   bool _incomingUsesExternalSurface = false;
   final CallSurfaceEpoch _desktopCallSurfaceEpoch = CallSurfaceEpoch();
   final SerialAsyncGate _desktopPopupGate = SerialAsyncGate();
@@ -156,6 +159,12 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
     if (action == 'answer' || action == 'decline') {
       if (!_incomingDialogOpen || _incomingAnswer?.isCompleted != false) {
         return false; // Stale or duplicate notification tap.
+      }
+      if (action == 'answer' && data['wasBackground'] == true &&
+          _incomingVideo) {
+        _autoPipAnswerSession = id;
+      } else if (action == 'decline') {
+        _autoPipAnswerSession = null;
       }
       _resolveIncomingDialog(action == 'answer');
       return true; // Native may now safely acknowledge/clear this Answer.
@@ -288,6 +297,18 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
     if (Platform.isAndroid) {
       try { await _notifications.invokeMethod<bool>('ongoing', args); }
       catch (_) {}
+      // Android 14+ permits capture only after explicit Answer restores the
+      // Activity. Automatically return the user to their previous app via
+      // OS PiP AFTER real transport connection, never while still ringing.
+      if (video && _autoPipAnswerSession == id &&
+          intercom?.callId == id && intercom?.connecting == false) {
+        _autoPipAnswerSession = null; // One attempt per accepted session.
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted && intercom?.callId == id &&
+            intercom?.connecting == false) {
+          await _enterPipVideo();
+        }
+      }
     } else if (Platform.isWindows) {
       final background = await _isDesktopBackground();
       if ((desktopEpoch != null &&
@@ -790,6 +811,7 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
         }
         if (_observedCallId != null && inter.talkingTo == null) {
           _observedCallId = null;
+          _autoPipAnswerSession = null;
           _activeCallUiId = null;
           _lastNativeMuted = null;
           unawaited(_finalizeEndedCallPresentation(inter).catchError((Object e) {
@@ -866,6 +888,7 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
         _incomingAnswer = answer;
         _incomingPeer = peer;
         _incomingVideo = incomingVideo;
+        _autoPipAnswerSession = null; // Never reuse an older Answer's intent.
         _incomingDialogOpen = true;
         _pendingIncomingDecision = null;
         _callMinimized = false;
@@ -918,6 +941,9 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
         } finally {
           _incomingAnswer = null;
           _incomingDialogOpen = false;
+          if (!accepted || inter.callId != id) {
+            _autoPipAnswerSession = null;
+          }
           // The notification can bring Android to the foreground BEFORE the
           // Answer completer resolves. The lifecycle resume handler correctly
           // avoids changing call presentation while it is still ringing, but
@@ -1493,8 +1519,18 @@ class _HomePageState extends State<HomePage> with wm.WindowListener, tray.TrayLi
       return;
     }
     _callMinimized = false;
-    try { await intercom!.call(peer, withVideo: video); }
-    catch (e) { _toast('Could not start call: $e'); }
+    try {
+      await intercom!.call(peer, withVideo: video);
+    } on SocketException {
+      // The discovery UDP packet may still arrive after Android's TCP
+      // listener has stopped. Do not present a refused port as "Online".
+      node?.markPeerUnreachable(peer);
+      _toast('The peer refused the LAN call connection. Open LAN Messenger '
+          'on the other device, verify background availability and check '
+          'the firewall or Wi-Fi isolation.');
+    } catch (e) {
+      _toast('Could not start call: $e');
+    }
   }
 
   Future<void> _renameDevice() async {

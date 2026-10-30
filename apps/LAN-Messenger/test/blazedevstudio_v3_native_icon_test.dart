@@ -36,8 +36,8 @@ void main() {
     final gen = File('tool/native-icons/generate.cjs').readAsStringSync();
     expect(gen, contains('lan-messenger-mark.svg'));
     expect(gen, contains('lan-messenger-mark-transparent.svg'));
-    expect(gen, contains('lan-messenger-mark-compact.svg'));
-    expect(gen, contains('size <= 32 ? compact : source'));
+    expect(gen, contains('sharp(source, {density: 288})'));
+    expect(gen, isNot(contains('size <= 32 ? compact : source')));
     expect(gen, contains("makeIco("));
   });
 }

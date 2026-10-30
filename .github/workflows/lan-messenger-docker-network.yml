@@ -1,0 +1,55 @@
+name: LAN Messenger - Docker authenticated TCP liveness
+
+on:
+  push:
+    paths:
+      - 'apps/LAN-Messenger/lib/src/node.dart'
+      - 'apps/LAN-Messenger/test/liveness_endpoint_test.dart'
+      - 'apps/LAN-Messenger/test/discovery_introduction_test.dart'
+      - 'apps/LAN-Messenger/test/asymmetric_discovery_test.dart'
+      - '.github/workflows/lan-messenger-docker-network.yml'
+  pull_request:
+    paths:
+      - 'apps/LAN-Messenger/lib/src/node.dart'
+      - 'apps/LAN-Messenger/test/liveness_endpoint_test.dart'
+      - 'apps/LAN-Messenger/test/discovery_introduction_test.dart'
+      - 'apps/LAN-Messenger/test/asymmetric_discovery_test.dart'
+      - '.github/workflows/lan-messenger-docker-network.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Intermediate commits must not launch competing multi-GB container pulls.
+concurrency:
+  group: lan-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-loopback-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      # Cirrus Labs stopped publishing new Flutter images in May 2026.
+      # Install the current SDK on the cloud runner and mount that exact
+      # host Flutter SDK into the compatible full-toolchain Docker image.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Actual encrypted TCP discovery and stale endpoint regression in Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")"
+          flutter --version
+          # Real sockets stay INSIDE Docker bridge networking, while Flutter
+          # binaries match the project's Dart >=3.13 SDK constraint.
+          docker run --rm --network bridge \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$SDK:/opt/flutter-host" \
+            -w /workspace/apps/LAN-Messenger \
+            -e CI=true \
+            ghcr.io/cirruslabs/flutter:3.44.0 \
+            sh -c 'apt-get update -qq && apt-get install -y -qq clang build-essential pkg-config cmake ninja-build && git config --global --add safe.directory /opt/flutter-host && /opt/flutter-host/bin/flutter --version && /opt/flutter-host/bin/flutter pub get && /opt/flutter-host/bin/flutter test --reporter expanded test/liveness_endpoint_test.dart test/discovery_introduction_test.dart test/asymmetric_discovery_test.dart'

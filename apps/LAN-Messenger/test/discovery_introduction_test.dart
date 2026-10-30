@@ -43,7 +43,13 @@ void main() {
           expect(learned, isNotNull);
           expect(learned!.key, b.identity.publicKeyB64);
           expect(learned.name, 'Android B');
-          expect(a.isOnline(learned), isTrue);
+          expect(a.isOnline(learned), isFalse,
+              reason: 'Authenticated incoming request alone does not verify the reverse TCP path');
+          // The opposite direction still requires its own authenticated
+          // outbound probe. Do not assume every discovered route is ready.
+          expect(a.peers[learned.id]?.key, learned.key);
+          // Reachability of a different interface advertised concurrently
+          // needs a fresh probe; do not mark UDP-only routes Online.
         } finally {
           await a.dispose();
           await b.dispose();
@@ -96,7 +102,7 @@ void main() {
     expect(end, greaterThan(start));
     final handler = source.substring(start, end);
     expect(handler, contains('Peer.fromDiscovery(decoded, packet.address.address)'));
-    expect(handler, contains('if (old == null && _udp != null)'));
+    expect(handler, contains('if ((old == null || endpointChanged) && _udp != null)'));
     expect(handler, contains('unawaited(introduceDiscoveredPeer(peer));'));
     expect(source, contains('maxConcurrentPeerIntroductions = 4'));
     expect(source, contains('peers[peer.id]?.port != peer.port'));
