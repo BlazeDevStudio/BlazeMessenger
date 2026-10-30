@@ -19,11 +19,25 @@ void main() {
       final end = workflow.indexOf('\n  ${pair.value}', at + 3);
       expect(end, greaterThan(at), reason: job);
       final section = workflow.substring(at, end);
+      expect(section, contains('emulator-build: 15261927'), reason: job);
       expect(section, contains('ram-size: 1536M'), reason: job);
       expect(section, contains('heap-size: 256M'), reason: job);
       expect(section, contains('-gpu software'), reason: job);
       expect(section, contains('reactivecircus/android-emulator-runner@v2'));
       expect(section, contains('run_dual_android_'));
+    }
+    final installAt = workflow.indexOf('\n  android-install-test:');
+    final lanAt = workflow.indexOf('\n  android-pair-lan:', installAt);
+    expect(installAt, greaterThan(0));
+    expect(lanAt, greaterThan(installAt));
+    final install = workflow.substring(installAt, lanAt);
+    expect(install, contains('emulator-build: 15261927'));
+    expect(install, contains('-gpu software'));
+    for (final pair in jobs.entries) {
+      final at = workflow.indexOf('\n  ${pair.key}');
+      final end = workflow.indexOf('\n  ${pair.value}', at + 3);
+      final section = workflow.substring(at, end);
+      expect(section, isNot(contains('-noaudio')), reason: pair.key);
     }
     expect(dual, contains("'hw.ramSize': '1536'"));
     expect(dual, contains("'vm.heapSize': '256'"));
