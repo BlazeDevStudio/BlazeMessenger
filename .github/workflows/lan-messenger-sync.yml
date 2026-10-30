@@ -92,11 +92,15 @@ jobs:
       - name: Install and launch APK on Android emulator (no Internet required by app)
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          # Stable Google Emulator 36.5.11 retains shared AVD Wi-Fi and avoids
+          # unverified Android Emulator 37.2.13 hosted QEMU segfault failures.
+          # Keep real install, two-peer discovery, WebRTC, PiP and death gates.
+          emulator-build: 15261927
           api-level: 35
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
           script: bash "$GITHUB_WORKSPACE/apps/LAN-Messenger/tool/android_install_smoke.sh"
   android-pair-lan:
     needs: android
@@ -118,6 +122,10 @@ jobs:
       - name: Two Android emulators — background incoming Answer and real WebRTC transport
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          # Stable Google Emulator 36.5.11 retains shared AVD Wi-Fi and avoids
+          # unverified Android Emulator 37.2.13 hosted QEMU segfault failures.
+          # Keep real install, two-peer discovery, WebRTC, PiP and death gates.
+          emulator-build: 15261927
           api-level: 35
           arch: x86_64
           target: google_apis
@@ -160,6 +168,10 @@ jobs:
       - name: Two real Android emulators — video frames, PiP expand, end while PiP
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          # Stable Google Emulator 36.5.11 retains shared AVD Wi-Fi and avoids
+          # unverified Android Emulator 37.2.13 hosted QEMU segfault failures.
+          # Keep real install, two-peer discovery, WebRTC, PiP and death gates.
+          emulator-build: 15261927
           api-level: 35
           arch: x86_64
           target: google_apis
@@ -198,6 +210,10 @@ jobs:
       - name: Two Android emulators — kill one live peer and require automatic orphan-call termination
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          # Stable Google Emulator 36.5.11 retains shared AVD Wi-Fi and avoids
+          # unverified Android Emulator 37.2.13 hosted QEMU segfault failures.
+          # Keep real install, two-peer discovery, WebRTC, PiP and death gates.
+          emulator-build: 15261927
           api-level: 35
           arch: x86_64
           target: google_apis
