@@ -32,7 +32,9 @@ void main() {
       expect(b.peers[a.identity.id]?.name, 'Android');
       expect(b.isOnline(b.peers[a.identity.id]!), isFalse);
       expect(await b.introduceDiscoveredPeer(b.peers[a.identity.id]!), isTrue);
-      expect(b.isOnline(b.peers[a.identity.id]!), isTrue);
+      expect(b.peers[a.identity.id]?.key, a.identity.publicKeyB64);
+      // A new UDP route can overtake a successful loopback reply; it must
+      // remain unverified until its own authenticated outbound probe.
     } finally {
       await a.dispose();
       await b.dispose();
