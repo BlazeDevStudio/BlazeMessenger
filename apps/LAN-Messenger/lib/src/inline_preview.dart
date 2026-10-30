@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -82,9 +83,50 @@ class _PreviewBody extends StatefulWidget {
 class _PreviewBodyState extends State<_PreviewBody> {
   VideoPlayerController? video;
   AudioPlayer? audio;
+  StreamSubscription<PlayerState>? _audioStates;
+  StreamSubscription<void>? _audioCompleted;
+  bool _audioBusy = false;
   Future<String>? document;
   String? mediaError;
   bool playing = false;
+
+  AudioPlayer _ensureAudioPlayer() {
+    if (audio != null) return audio!;
+    final player = AudioPlayer();
+    audio = player;
+    _audioStates = player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => playing = state == PlayerState.playing);
+    });
+    // A completed attachment must return to Play; otherwise the icon stays
+    // Pause and the next tap does nothing until the user manually retries.
+    _audioCompleted = player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => playing = false);
+    });
+    return player;
+  }
+
+  Future<void> _toggleAudio() async {
+    if (_audioBusy) return;
+    setState(() => _audioBusy = true);
+    try {
+      final player = _ensureAudioPlayer();
+      if (player.state == PlayerState.playing) {
+        await player.pause();
+      } else if (player.state == PlayerState.paused) {
+        await player.resume();
+      } else {
+        await player.play(DeviceFileSource(widget.file.path));
+      }
+      if (mounted) setState(() => mediaError = null);
+    } catch (e) {
+      if (mounted) setState(() {
+        playing = false;
+        mediaError = 'Audio playback failed: ${e.runtimeType}';
+      });
+    } finally {
+      if (mounted) setState(() => _audioBusy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -121,17 +163,10 @@ class _PreviewBodyState extends State<_PreviewBody> {
     }
     if (const {'mp3','m4a','wav','ogg','aac'}.contains(ext)) {
       return Row(children: [
-        IconButton(icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
-          onPressed: () async {
-            try {
-              final player = audio ??= AudioPlayer();
-              if (playing) { await player.pause(); } else {
-                if (player.state == PlayerState.paused) { await player.resume(); }
-                else { await player.play(DeviceFileSource(widget.file.path)); }
-              }
-              if (mounted) setState(() => playing = !playing);
-            } catch (e) { if (mounted) setState(() => mediaError = '$e'); }
-          }),
+        IconButton(
+          icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
+          onPressed: _audioBusy ? null : _toggleAudio,
+        ),
         Expanded(child: Text(mediaError ?? 'Audio • Tap to ${playing ? 'pause' : 'play'}')),
       ]);
     }
@@ -151,8 +186,10 @@ class _PreviewBodyState extends State<_PreviewBody> {
 
   @override
   void dispose() {
-    video?.dispose();
-    audio?.dispose();
+    unawaited(_audioStates?.cancel());
+    unawaited(_audioCompleted?.cancel());
+    if (audio != null) unawaited(audio!.dispose());
+    if (video != null) unawaited(video!.dispose());
     super.dispose();
   }
 }
