@@ -123,7 +123,10 @@ jobs:
           target: google_apis
           profile: pixel_2
           # Voice tests must not disable virtual audio for the caller/callee.
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
+          # Two 1.5 GiB guests fit the hosted runner; retain full dual-device E2E checks.
+          ram-size: 1536M
+          heap-size: 256M
+          emulator-options: -no-window -gpu software -no-snapshot -no-boot-anim -camera-front emulated
           # Use THIS workflow's freshly built APK, not an older cached build:
           # source the LAN discovery stage and then exercise OS Answer, peer
           # transport readiness and hangup on two real emulator processes.
@@ -161,7 +164,10 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
+          # Two 1.5 GiB guests fit the hosted runner; retain full dual-device E2E checks.
+          ram-size: 1536M
+          heap-size: 256M
+          emulator-options: -no-window -gpu software -no-snapshot -no-boot-anim -camera-front emulated
           script: bash "$GITHUB_WORKSPACE/.github/scripts/lan-messenger/run_dual_android_video_e2e.sh"
       - name: Upload independent video/PiP acceptance evidence
         if: always()
@@ -196,7 +202,10 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
+          # Two 1.5 GiB guests fit the hosted runner; retain full dual-device E2E checks.
+          ram-size: 1536M
+          heap-size: 256M
+          emulator-options: -no-window -gpu software -no-snapshot -no-boot-anim -camera-front emulated
           script: bash "$GITHUB_WORKSPACE/.github/scripts/lan-messenger/run_dual_android_peer_death_e2e.sh"
       - name: Upload actual peer-process-death acceptance evidence
         if: always()
