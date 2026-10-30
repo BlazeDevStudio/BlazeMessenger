@@ -362,10 +362,14 @@ class LanNode {
       {Duration timeout = const Duration(seconds: 15)}) async {
     // A chat tile may hold an older Peer object after Android rebinds its
     // ephemeral listener. Resolve from the currently pinned discovery record.
-    final current = peers[peer.id];
-    if (current == null || current.key != peer.key) {
+    final pinned = peers[peer.id];
+    if (pinned != null && pinned.key != peer.key) {
       throw StateError('Peer identity changed or is unavailable');
     }
+    // Existing routed transfer/proxy flows can supply an explicit Peer before
+    // a UDP announcement has been received. Preserve those paths, but never
+    // let an old UI reference override a newer pinned same-key endpoint.
+    final current = pinned ?? peer;
     final packet = await cipher.seal(current.key, body);
     // Reply address lets new peers join even when UDP discovery is one-way.
     packet['replyName'] = identity.displayName;
