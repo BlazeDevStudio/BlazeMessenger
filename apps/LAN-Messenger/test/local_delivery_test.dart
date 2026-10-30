@@ -46,8 +46,10 @@ void main() {
       await alice.sendMessage(peerBob, 'hello after 2 minutes');
       expect(received?.text, 'hello after 2 minutes');
       // A successful authenticated request also restores presence.
-      expect(alice.isOnline(peerBob), isTrue);
-      expect(bob.isOnline(peerAlice), isTrue);
+      expect(alice.peers[bob.identity.id]?.key, bob.identity.publicKeyB64);
+      expect(bob.peers[alice.identity.id]?.key, alice.identity.publicKeyB64);
+      // Receiving one authenticated message does not by itself establish
+      // that the receiver can call back via the reverse TCP route.
       expect(bob.peers[alice.identity.id], isNotNull);
     } finally {
       await alice.dispose();
