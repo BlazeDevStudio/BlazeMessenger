@@ -359,7 +359,8 @@ class LanNode {
   }
 
   Future<Map<String, dynamic>> _post(Peer peer, String path, List<int> body,
-      {Duration timeout = const Duration(seconds: 15)}) async {
+      {Duration timeout = const Duration(seconds: 15),
+       bool preferPinnedEndpoint = false}) async {
     // A chat tile may hold an older Peer object after Android rebinds its
     // ephemeral listener. Resolve from the currently pinned discovery record.
     final pinned = peers[peer.id];
@@ -369,7 +370,10 @@ class LanNode {
     // Existing routed transfer/proxy flows can supply an explicit Peer before
     // a UDP announcement has been received. Preserve those paths, but never
     // let an old UI reference override a newer pinned same-key endpoint.
-    final current = pinned ?? peer;
+    // File resume/proxy transport explicitly owns a destination route.
+    // Only ordinary app UI signaling/messages and heartbeat calls should
+    // resolve a possibly stale selected peer to newly discovered TCP port.
+    final current = preferPinnedEndpoint ? (pinned ?? peer) : peer;
     final packet = await cipher.seal(current.key, body);
     // Reply address lets new peers join even when UDP discovery is one-way.
     packet['replyName'] = identity.displayName;
@@ -391,6 +395,8 @@ class LanNode {
 
   Future<Map<String, dynamic>> _event(Peer peer, Map<String, dynamic> event) =>
       _post(peer, '/v1/event', utf8.encode(jsonEncode(event)),
+        preferPinnedEndpoint: event['kind'] != 'file-offer' &&
+            event['kind'] != 'file-status',
         timeout: event['kind'] == 'file-offer'
             ? const Duration(minutes: 3) : const Duration(seconds: 15));
 
@@ -401,7 +407,8 @@ class LanNode {
     try {
       final probe = await _post(peer, '/v1/event',
           utf8.encode(jsonEncode({'kind': 'call-probe', 'callId': callId})),
-          timeout: const Duration(seconds: 3));
+          timeout: const Duration(seconds: 3),
+          preferPinnedEndpoint: true);
       if (probe['active'] is bool) {
         return probe['active'] == true
             ? CallProbeResult.active : CallProbeResult.ended;
@@ -410,7 +417,8 @@ class LanNode {
       // Do not break voice/video across mixed preview versions.
       final legacy = await _post(peer, '/v1/event',
           utf8.encode(jsonEncode({'kind': 'ping'})),
-          timeout: const Duration(seconds: 3));
+          timeout: const Duration(seconds: 3),
+          preferPinnedEndpoint: true);
       return legacy['ok'] == true
           ? CallProbeResult.active : CallProbeResult.unreachable;
     } catch (_) {
