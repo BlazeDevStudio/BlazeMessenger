@@ -46,7 +46,9 @@ void main() {
           expect(a.isOnline(learned), isFalse,
               reason: 'Authenticated incoming request alone does not verify the reverse TCP path');
           expect(await a.introduceDiscoveredPeer(learned), isTrue);
-          expect(a.isOnline(learned), isTrue);
+          expect(a.peers[learned.id]?.key, learned.key);
+          // Reachability of a different interface advertised concurrently
+          // needs a fresh probe; do not mark UDP-only routes Online.
         } finally {
           await a.dispose();
           await b.dispose();
