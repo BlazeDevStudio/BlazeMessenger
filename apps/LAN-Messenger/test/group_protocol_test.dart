@@ -11,6 +11,11 @@ import 'package:lan_messenger/src/protocol.dart';
 
 class FakeLanNode extends LanNode {
   FakeLanNode(super.identity);
+  // This test uses an in-memory signal network, not a real TCP listener.
+  // Its explicit test double admits simulated peers; production remains
+  // strict about authenticated outbound TCP before advertising Online.
+  @override
+  bool isOnline(Peer peer) => network?.containsKey(peer.id) == true;
   Map<String, FakeLanNode>? network;
   final List<Map<String, dynamic>> sent = [];
   @override
