@@ -30,6 +30,8 @@ void main() {
       await a.sendMessage(a.peers[b.identity.id]!, 'Hi from phone');
       expect(message, 'Hi from phone');
       expect(b.peers[a.identity.id]?.name, 'Android');
+      expect(b.isOnline(b.peers[a.identity.id]!), isFalse);
+      expect(await b.introduceDiscoveredPeer(b.peers[a.identity.id]!), isTrue);
       expect(b.isOnline(b.peers[a.identity.id]!), isTrue);
     } finally {
       await a.dispose();
