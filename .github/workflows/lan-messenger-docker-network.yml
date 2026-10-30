@@ -52,4 +52,4 @@ jobs:
             -w /workspace/apps/LAN-Messenger \
             -e CI=true \
             ghcr.io/cirruslabs/flutter:3.44.0 \
-            sh -c 'git config --global --add safe.directory /opt/flutter-host && /opt/flutter-host/bin/flutter --version && /opt/flutter-host/bin/flutter pub get && /opt/flutter-host/bin/flutter test --reporter expanded test/liveness_endpoint_test.dart test/discovery_introduction_test.dart test/asymmetric_discovery_test.dart'
+            sh -c 'apt-get update -qq && apt-get install -y -qq clang build-essential pkg-config cmake ninja-build && git config --global --add safe.directory /opt/flutter-host && /opt/flutter-host/bin/flutter --version && /opt/flutter-host/bin/flutter pub get && /opt/flutter-host/bin/flutter test --reporter expanded test/liveness_endpoint_test.dart test/discovery_introduction_test.dart test/asymmetric_discovery_test.dart'
