@@ -2,6 +2,7 @@ name: LAN Messenger - optimized release build and install checks
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -239,3 +240,33 @@ jobs:
             build/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
+  publish-release-assets:
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: LAN-Messenger-Android-Optimized
+          path: release-android
+      - uses: actions/download-artifact@v4
+        with:
+          name: LAN-Messenger-Windows-Optimized
+          path: release-windows
+      - name: Attach multiplatform binaries to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat release-windows/SHA256SUMS.txt release-android/SHA256SUMS.txt > SHA256SUMS.txt
+          gh release upload "${{ github.ref_name }}" \
+            release-android/app-*-release.apk \
+            release-windows/LAN-Messenger-Windows-Optimized.zip \
+            SHA256SUMS.txt \
+            --repo "${{ github.repository }}" \
+            --clobber
+
