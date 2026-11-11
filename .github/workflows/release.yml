@@ -1,4 +1,4 @@
-name: LAN Messenger - optimized release build and install checks
+name: LAN Messenger Multiplatform Release
 on:
   push:
     branches: [ main ]
@@ -7,9 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Unique concurrency group per ref and commit SHA to prevent runner lockout
+# Fresh concurrency group to bypass stalled broker queue partition
 concurrency:
-  group: release-v3-${{ github.ref }}-${{ github.sha }}
+  group: blazemsg-rel-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
