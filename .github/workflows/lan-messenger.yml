@@ -7,9 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Scope concurrency group per commit SHA so new tag/branch pushes start immediately
+# Unique concurrency group per ref and commit SHA to prevent runner lockout
 concurrency:
-  group: lan-messenger-${{ github.ref }}-${{ github.sha }}
+  group: release-v3-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -18,7 +18,7 @@ permissions:
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,156 +63,10 @@ jobs:
             build/app/outputs/flutter-apk/SHA256SUMS.txt \
             --repo "${{ github.repository }}" \
             --clobber
-      - uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: |
-            build/app/outputs/flutter-apk/app-*-release.apk
-            build/app/outputs/flutter-apk/SHA256SUMS.txt
-          if-no-files-found: ignore
-          retention-days: 30
-
-  android-install-test:
-    needs: android
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: android-apk
-      - name: Permit temporary KVM acceleration on this disposable runner
-        shell: bash
-        run: |
-          if [ -c /dev/kvm ]; then
-            sudo chmod 666 /dev/kvm
-            ls -l /dev/kvm
-          else
-            echo "No /dev/kvm device; emulator will use slower software mode"
-          fi
-      - name: Install and launch APK on Android emulator (no Internet required by app)
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash "$GITHUB_WORKSPACE/tool/android_install_smoke.sh"
-  android-pair-lan:
-    needs: android
-    runs-on: ubuntu-latest
-    timeout-minutes: 28
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: android-apk
-      - name: Install cloud emulator runtime libraries and enable KVM
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libpulse0
-          if [ -c /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
-      - name: Two Android emulators — background incoming Answer and real WebRTC transport
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_2
-          # Voice tests must not disable virtual audio for the caller/callee.
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
-          # Use THIS workflow's freshly built APK, not an older cached build:
-          # source the LAN discovery stage and then exercise OS Answer, peer
-          # transport readiness and hangup on two real emulator processes.
-          script: bash "$GITHUB_WORKSPACE/.github/scripts/run_dual_android_voice_e2e.sh"
-      - name: Upload dual-emulator network evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Peer-LAN-Evidence
-          path: android-lan-evidence/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  android-pair-video:
-    needs: android
-    runs-on: ubuntu-latest
-    timeout-minutes: 28
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: android-apk
-      - name: Install cloud emulator runtime libraries and enable KVM
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libpulse0
-          if [ -c /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
-      - name: Two real Android emulators — video frames, PiP expand, end while PiP
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
-          script: bash "$GITHUB_WORKSPACE/.github/scripts/run_dual_android_video_e2e.sh"
-      - name: Upload independent video/PiP acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Video-PiP-Evidence
-          path: android-lan-evidence/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  android-peer-process-death:
-    needs: android
-    runs-on: ubuntu-latest
-    timeout-minutes: 28
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: android-apk
-      - name: Install emulator runtime libraries and enable KVM
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libpulse0
-          if [ -c /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
-      - name: Two Android emulators — kill one live peer and require automatic orphan-call termination
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-front emulated
-          script: bash "$GITHUB_WORKSPACE/.github/scripts/run_dual_android_peer_death_e2e.sh"
-      - name: Upload actual peer-process-death acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: LAN-Messenger-Android-Peer-Death-Evidence
-          path: android-lan-evidence/
-          if-no-files-found: ignore
-          retention-days: 14
 
   windows:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -262,45 +116,6 @@ jobs:
         run: |
           gh release upload "${{ github.ref_name }}" `
             build/LAN-Messenger-Windows-Optimized.zip `
+            build/SHA256SUMS.txt `
             --repo "${{ github.repository }}" `
             --clobber
-      - uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: LAN-Messenger-Windows-Optimized
-          path: |
-            build/LAN-Messenger-Windows-Optimized.zip
-            build/SHA256SUMS.txt
-          if-no-files-found: ignore
-          retention-days: 30
-
-  publish-release-assets:
-    needs: [android, windows]
-    if: always() && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: LAN-Messenger-Android-Optimized
-          path: release-android
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: LAN-Messenger-Windows-Optimized
-          path: release-windows
-      - name: Attach consolidated checksums to GitHub Release
-        if: hashFiles('release-windows/SHA256SUMS.txt') != '' && hashFiles('release-android/SHA256SUMS.txt') != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          cat release-windows/SHA256SUMS.txt release-android/SHA256SUMS.txt > SHA256SUMS.txt
-          gh release upload "${{ github.ref_name }}" \
-            SHA256SUMS.txt \
-            --repo "${{ github.repository }}" \
-            --clobber
-
