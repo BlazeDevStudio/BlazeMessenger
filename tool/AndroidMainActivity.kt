@@ -14,6 +14,7 @@ import android.content.res.Configuration
 import android.util.Rational
 import android.util.Log
 import android.content.BroadcastReceiver
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -174,6 +175,7 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         active = this
+        setupChannels()
         consumeAction(intent)
     }
 
@@ -234,7 +236,14 @@ class MainActivity : FlutterActivity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun eventChannel(event: String): String = "lan_v026_" + event
+    private fun eventChannel(event: String): String = "lan_v036_" + event
+
+    private fun setupChannels() {
+        if (Build.VERSION.SDK_INT < 26) return
+        for (event in listOf("call", "video_call", "message", "file")) {
+            createChannel(event)
+        }
+    }
 
     private fun createChannel(event: String) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -245,28 +254,44 @@ class MainActivity : FlutterActivity() {
             else -> "Chat messages"
         }
         val id = eventChannel(event)
+
+        // Delete obsolete unversioned or legacy v026 channels so they do not cache default tones
+        try {
+            notifications.deleteNotificationChannel("lan_v026_$event")
+        } catch (_: Exception) {}
+
         if (notifications.getNotificationChannel(id) != null) return
         val channel = NotificationChannel(id, "LAN Messenger $name", NotificationManager.IMPORTANCE_HIGH)
         channel.description = "Offline LAN Messenger $name"
         channel.enableVibration(event == "call" || event == "video_call")
-        val tone = resources.getIdentifier(event, "raw", packageName)
-        if (tone != 0) {
-            val usage = if (event == "call" || event == "video_call")
-                AudioAttributes.USAGE_NOTIFICATION_RINGTONE else AudioAttributes.USAGE_NOTIFICATION
-            channel.setSound(Uri.parse("android.resource://$packageName/$tone"),
-                AudioAttributes.Builder().setUsage(usage).build())
-        }
+        val soundUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://$packageName/raw/$event")
+        val usage = if (event == "call" || event == "video_call")
+            AudioAttributes.USAGE_NOTIFICATION_RINGTONE else AudioAttributes.USAGE_NOTIFICATION
+        val attrs = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(usage)
+            .build()
+        channel.setSound(soundUri, attrs)
         notifications.createNotificationChannel(channel)
     }
 
     private fun builder(event: String): Notification.Builder {
         createChannel(event)
-        return if (Build.VERSION.SDK_INT >= 26) {
+        val soundUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://$packageName/raw/$event")
+        val usage = if (event == "call" || event == "video_call")
+            AudioAttributes.USAGE_NOTIFICATION_RINGTONE else AudioAttributes.USAGE_NOTIFICATION
+        val attrs = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(usage)
+            .build()
+        val b = if (Build.VERSION.SDK_INT >= 26) {
             Notification.Builder(this, eventChannel(event))
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this).setPriority(Notification.PRIORITY_MAX)
         }
+        b.setSound(soundUri, attrs)
+        return b
     }
 
     private fun openApp(): PendingIntent {
@@ -555,7 +580,7 @@ class MainActivity : FlutterActivity() {
         callBridge?.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
-                    "setup" -> { requestNotificationPermission(); result.success(null) }
+                    "setup" -> { requestNotificationPermission(); setupChannels(); result.success(null) }
                     "incoming" -> result.success(showIncomingCall(
                         call.argument<String>("caller") ?: "LAN Messenger",
                         call.argument<String>("callId") ?: "",

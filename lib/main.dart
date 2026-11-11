@@ -22,7 +22,9 @@ import 'src/inline_preview.dart';
 import 'src/remote_control_surface.dart';
 import 'src/call_presentation_gate.dart';
 import 'src/serial_async_gate.dart';
+import 'src/brand_identity.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -2028,18 +2030,19 @@ class _HomePageState extends State<HomePage>
 
   Widget _title() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-    color: settings.accent,
+    color: BlazeIdentity.navy,
     child: SafeArea(
       bottom: false,
       child: Row(
         children: [
-          Image.asset(
-            'assets/branding/connectit/connectit-icon-48.png',
-            width: 34,
-            height: 34,
-            filterQuality: FilterQuality.high,
+          SvgPicture.asset(
+            BlazeIdentity.lanMarkAsset,
+            width: 46,
+            height: 46,
+            fit: BoxFit.contain,
+            semanticsLabel: 'LAN Messenger — BlazeDevStudio network mark',
           ),
-          const SizedBox(width: 9),
+          const SizedBox(width: 7),
           const Expanded(
             child: Text(
               'LAN Messenger',

@@ -9,3 +9,4 @@ windows/
 .idea/
 .vscode/
 tool/__pycache__/
+node_modules/

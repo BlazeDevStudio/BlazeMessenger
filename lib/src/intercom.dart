@@ -390,6 +390,8 @@ class Intercom {
   bool _peerProbeBusy = false;
   int _peerProbeGeneration = 0;
   bool _iceDisconnected = false;
+  bool _iceRestartBusy = false;
+  DateTime? _lastIceRestartAt;
   final CallPeerWatchdog _peerWatchdog = CallPeerWatchdog();
 
   /// Call-scoped HTTP liveness supplements ICE: a crashed Windows process
@@ -421,6 +423,7 @@ class Intercom {
         node.markPeerUnreachable(peer);
         _beginReconnectAt(_peerWatchdog.firstUnavailableAt!);
         unawaited(_log('peer heartbeat unavailable; bounded reconnect'));
+        unawaited(_attemptIceRestart(peer, id));
       } else if (change == CallWatchdogChange.recovered) {
         // A recovered signaling socket does not prove media recovery after
         // ICE has actually disconnected. Preserve grace until media resumes.
@@ -438,6 +441,8 @@ class Intercom {
     _peerProbeGeneration++;
     _peerProbeBusy = false;
     _iceDisconnected = false;
+    _iceRestartBusy = false;
+    _lastIceRestartAt = null;
     _peerWatchdog.reset();
   }
 
@@ -470,10 +475,52 @@ class Intercom {
 
   void _resetReconnectState() {
     reconnecting = false;
+    _iceRestartBusy = false;
+    _lastIceRestartAt = null;
     _disconnectGrace.dispose();
     _reconnectUiPulse?.cancel();
     _reconnectUiPulse = null;
     _reconnectUntil = null;
+  }
+
+  Future<void> _attemptIceRestart(Peer peer, String id) async {
+    if (_iceRestartBusy || _closing || callId != id || _connection == null)
+      return;
+    final now = DateTime.now();
+    if (_lastIceRestartAt != null &&
+        now.difference(_lastIceRestartAt!).inSeconds < 4) {
+      return;
+    }
+    _iceRestartBusy = true;
+    _lastIceRestartAt = now;
+    try {
+      final pc = _connection;
+      if (pc == null || _closing || callId != id) return;
+      unawaited(_log('attempting ICE restart for call $id'));
+      try {
+        await pc.restartIce();
+      } catch (e) {
+        unawaited(_log('pc.restartIce notice: $e'));
+      }
+      final offer = await pc.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': video,
+        'iceRestart': true,
+      });
+      if (_closing || callId != id) return;
+      await pc.setLocalDescription(offer);
+      await node.signal(peer, {
+        'type': 'offer',
+        'callId': id,
+        'sdp': offer.sdp,
+        'video': video,
+        'iceRestart': true,
+      });
+    } catch (e) {
+      unawaited(_log('ICE restart attempt error: $e'));
+    } finally {
+      _iceRestartBusy = false;
+    }
   }
 
   late final LanDisconnectGrace _disconnectGrace = LanDisconnectGrace(() {
@@ -673,18 +720,25 @@ class Intercom {
     };
     pc.onConnectionState = (state) {
       if (callId != id || _closing) return;
-      if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         // WebRTC lost media: keep the existing tracks for bounded recovery.
         // A concurrent heartbeat may already have started an EARLIER deadline.
         _iceDisconnected = true;
         _beginReconnectAt(DateTime.now());
-        unawaited(_log('media disconnected; grace=${reconnectGraceSeconds}s'));
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
-        // ICE failure/close is terminal without a new negotiation.
-        _disconnectGrace.dispose();
-        unawaited(_log('terminal connection state $state'));
-        unawaited(hangUp(notify: false));
+        unawaited(
+          _log(
+            'media connection state $state; grace=${reconnectGraceSeconds}s',
+          ),
+        );
+        unawaited(_attemptIceRestart(peer, id));
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+        // Peer connection closed.
+        if (!_closing) {
+          _disconnectGrace.dispose();
+          unawaited(_log('terminal connection state $state'));
+          unawaited(hangUp(notify: false));
+        }
       } else if (CallTransportGate.mediaReady(state)) {
         _iceDisconnected = false;
         if (!_peerWatchdog.suspect) _resetReconnectState();
@@ -701,6 +755,24 @@ class Intercom {
         // WebRTC transport establishment.
         print('LAN_CALL_TRACE webrtc_transport_connected');
         unawaited(_log('webrtc_transport_connected callId=$id'));
+      }
+      onChanged?.call();
+    };
+    pc.onIceConnectionState = (state) {
+      if (callId != id || _closing) return;
+      if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        _iceDisconnected = true;
+        _beginReconnectAt(DateTime.now());
+        unawaited(
+          _log('ice connection state $state; grace=${reconnectGraceSeconds}s'),
+        );
+        unawaited(_attemptIceRestart(peer, id));
+      } else if (state ==
+              RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        _iceDisconnected = false;
+        if (!_peerWatchdog.suspect) _resetReconnectState();
       }
       onChanged?.call();
     };
@@ -762,7 +834,45 @@ class Intercom {
     final id = data['callId'];
     if (id is! String || id.length > 64 || type is! String) return;
     if (type == 'offer') {
-      if (talkingTo != null || _closing || data['sdp'] is! String) {
+      if (talkingTo != null) {
+        if (talkingTo?.id == peer.id &&
+            callId == id &&
+            data['sdp'] is String &&
+            _connection != null &&
+            !_closing) {
+          // Existing active call ICE restart / renegotiation
+          try {
+            final pc = _connection!;
+            await pc.setRemoteDescription(
+              RTCSessionDescription(data['sdp'] as String, 'offer'),
+            );
+            _remoteDescriptionReady = true;
+            await _flushIce(id);
+            final answer = await pc.createAnswer({
+              'offerToReceiveAudio': true,
+              'offerToReceiveVideo': video,
+            });
+            await pc.setLocalDescription(answer);
+            await node.signal(peer, {
+              'type': 'answer',
+              'callId': id,
+              'sdp': answer.sdp,
+            });
+            unawaited(_log('answered ICE restart offer for call $id'));
+            onChanged?.call();
+          } catch (e) {
+            unawaited(_log('ICE restart answer error: $e'));
+          }
+          return;
+        }
+        unawaited(
+          node
+              .signal(peer, {'type': 'hangup', 'callId': id})
+              .catchError((_) {}),
+        );
+        return;
+      }
+      if (_closing || data['sdp'] is! String) {
         unawaited(
           node
               .signal(peer, {'type': 'hangup', 'callId': id})
@@ -971,7 +1081,9 @@ class Intercom {
         onChanged?.call();
       } catch (e) {
         await _log('answer error: $e');
-        await hangUp();
+        if (!reconnecting) {
+          await hangUp();
+        }
       }
     } else if (type == 'hangup') {
       await hangUp(notify: false);
@@ -1085,6 +1197,7 @@ class Intercom {
         // Disconnect callbacks first; don't allow an onConnectionState recursion.
         pc.onIceCandidate = null;
         pc.onConnectionState = null;
+        pc.onIceConnectionState = null;
         pc.onTrack = null;
         pc.onAddStream = null;
         try {

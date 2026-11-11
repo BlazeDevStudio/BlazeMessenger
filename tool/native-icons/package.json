@@ -1,0 +1,8 @@
+{
+  "name": "lan-messenger-native-icon-build",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Build-only rasterizer for approved BlazeDevStudio V3 SVGs",
+  "license": "UNLICENSED",
+  "dependencies": {"sharp": "0.34.4"}
+}

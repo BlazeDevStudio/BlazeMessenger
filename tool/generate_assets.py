@@ -1,9 +1,11 @@
-"""Generate original, dependency-free LAN Messenger sound and tray resources.
-No third-party media files are bundled. Reproducible with Python stdlib.
+"""Generate original LAN Messenger sound plus verified BlazeDevStudio V3 icons.
+Sound synthesis is Python stdlib; native icons use pinned build-only sharp.
+No private artwork or live network access is needed at generator runtime.
 """
 import math
 import struct
 import wave
+import subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 sound_dir=root/'assets/sounds'; sound_dir.mkdir(parents=True,exist_ok=True)
@@ -32,10 +34,19 @@ for key,notes in MELODIES.items():
         samples.append(struct.pack('<h',max(-32768,min(32767,round(value*32767)))))
     with wave.open(str(sound_dir/(key+'.wav')),'wb') as wav:
         wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(RATE);wav.writeframes(b''.join(samples))
-# Use exact owner-provided ConnectIT icon; do not recreate the old bubble.
-import shutil
-icon_source = root/'assets/branding/connectit/connectit.ico'
-if not icon_source.is_file():
-    raise FileNotFoundError(f'Missing ConnectIT icon: {icon_source}')
-shutil.copyfile(icon_source, icon_dir/'lan_messenger.ico')
-print('Created',len(MELODIES),'sounds and installed ConnectIT icon')
+# Native assets are reproducibly rasterized from the exact V3 SVG path master.
+# Owner-provided legacy ConnectIT files stay archived unmodified in the repo.
+renderer = root/'tool/native-icons/generate.cjs'
+native_icons_dir = root / 'tool/native-icons'
+try:
+    if not (native_icons_dir / 'node_modules/sharp').is_dir():
+        subprocess.run(['npm', 'install', '--no-package-lock'],
+                       cwd=native_icons_dir,
+                       shell=(subprocess.os.name == 'nt'),
+                       check=True)
+    subprocess.run(['node', str(renderer)], cwd=root, check=True)
+except Exception as e:
+    if not (icon_dir / 'lan_messenger.ico').is_file():
+        raise RuntimeError(f'Icon generation failed and no cached icons found: {e}')
+assert (icon_dir / 'lan_messenger.ico').is_file()
+print('Created', len(MELODIES), 'sounds and installed approved BlazeDevStudio V3 icon')

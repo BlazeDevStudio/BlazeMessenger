@@ -91,28 +91,29 @@ if manifest.exists():
         if source.exists():
             shutil.copy2(source, raw / (key+'.wav'))
 
-# Use the owner's ConnectIT logo on native launchers without changing
-# the existing LAN protocol, package identity or account functionality.
-brand = root / 'assets/branding/connectit'
+# Native launcher/tray assets are rasterized from the approved BlazeDevStudio
+# V3 SVG via the build-only sharp renderer. Preserve package ID/signing.
+brand = root / 'assets/icons'
 res = root / 'android/app/src/main/res'
 if manifest.exists():
-    for folder, name in {
-        'mipmap-mdpi': 'connectit-icon-48.png',
-        'mipmap-hdpi': 'connectit-icon-64.png',
-        'mipmap-xhdpi': 'connectit-icon-128.png',
-        'mipmap-xxhdpi': 'connectit-icon-128.png',
-        'mipmap-xxxhdpi': 'connectit-icon-192.png'
+    for folder, size in {
+        'mipmap-mdpi': 48,
+        'mipmap-hdpi': 72,
+        'mipmap-xhdpi': 96,
+        'mipmap-xxhdpi': 144,
+        'mipmap-xxxhdpi': 192
     }.items():
+        source = brand / f'v3-icon-{size}.png'
         dest = res / folder
         dest.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(brand / name, dest / 'ic_launcher.png')
-        assert (dest / 'ic_launcher.png').read_bytes() == (brand / name).read_bytes()
+        shutil.copyfile(source, dest / 'ic_launcher.png')
+        assert (dest / 'ic_launcher.png').read_bytes() == source.read_bytes()
 
     adaptive = res / 'mipmap-nodpi'
     adaptive.mkdir(parents=True, exist_ok=True)
     for source_name, target_name in (
-        ('android-adaptive-foreground.png', 'connectit_foreground.png'),
-        ('android-adaptive-background.png', 'connectit_background.png')
+        ('v3-adaptive-foreground.png', 'blaze_v3_foreground.png'),
+        ('v3-adaptive-background.png', 'blaze_v3_background.png')
     ):
         shutil.copyfile(brand / source_name, adaptive / target_name)
         assert (adaptive / target_name).read_bytes() == (brand / source_name).read_bytes()
@@ -121,15 +122,15 @@ if manifest.exists():
     xml.parent.mkdir(parents=True, exist_ok=True)
     xml.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@mipmap/connectit_background" />
-    <foreground android:drawable="@mipmap/connectit_foreground" />
+    <background android:drawable="@mipmap/blaze_v3_background" />
+    <foreground android:drawable="@mipmap/blaze_v3_foreground" />
 </adaptive-icon>
 ''', encoding='utf-8')
 
 windows_icon = root / 'windows/runner/resources/app_icon.ico'
 if windows_icon.parent.exists():
-    shutil.copyfile(brand / 'connectit.ico', windows_icon)
-    assert windows_icon.read_bytes() == (brand / 'connectit.ico').read_bytes()
+    shutil.copyfile(brand / 'lan_messenger.ico', windows_icon)
+    assert windows_icon.read_bytes() == (brand / 'lan_messenger.ico').read_bytes()
 
 window = root / 'windows/runner/main.cpp'
 if window.exists():
