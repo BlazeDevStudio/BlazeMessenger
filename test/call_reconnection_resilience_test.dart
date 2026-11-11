@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('intercom keeps call active during disconnected and failed states for bounded grace', () {
-    final source = File('lib/src/intercom.dart').readAsStringSync();
+    final source = File('lib/src/intercom.dart')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
     final connStateStart = source.indexOf('pc.onConnectionState = (state) {');
     final connStateEnd = source.indexOf(
       'for (final track in stream.getTracks())',
@@ -47,7 +49,9 @@ void main() {
   });
 
   test('active call accepts incoming renegotiation and ICE restart offers without hangup', () {
-    final source = File('lib/src/intercom.dart').readAsStringSync();
+    final source = File('lib/src/intercom.dart')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
     final incomingStart = source.indexOf("if (type == 'offer') {");
     final incomingEnd = source.indexOf(
       "if (id != callId || peer.id != talkingTo?.id || _closing) return;",
@@ -71,7 +75,9 @@ void main() {
   });
 
   test('Android notification channels use v036 IDs, ContentResolver URIs, and SONIFICATION audio attributes', () {
-    final native = File('tool/AndroidMainActivity.kt').readAsStringSync();
+    final native = File('tool/AndroidMainActivity.kt')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
     expect(
       native,
       contains(
