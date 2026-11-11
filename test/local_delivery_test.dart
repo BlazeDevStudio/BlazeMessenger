@@ -121,4 +121,46 @@ void main() {
       }
     }),
   );
+
+  test(
+    'chat messages are deduplicated and replay is rejected',
+    () => realSockets(() async {
+      final alice = LanNode(
+        Identity(await (await X25519().newKeyPair()).extract(), 'Sender'),
+      );
+      final bob = LanNode(
+        Identity(await (await X25519().newKeyPair()).extract(), 'Receiver'),
+      );
+      await alice.start();
+      await bob.start();
+      try {
+        final peerBob = localPeer(bob.identity, bob.listenPort);
+        final peerAlice = localPeer(alice.identity, alice.listenPort);
+        alice.peers[bob.identity.id] = peerBob;
+        bob.peers[alice.identity.id] = peerAlice;
+
+        var chatCount = 0;
+        bob.onChat = (_, message) => chatCount++;
+
+        final duplicateEvent = {
+          'kind': 'message',
+          'text': 'first arrival',
+          'id': 'dedup-test-msg-01',
+          'time': DateTime.now().toUtc().toIso8601String(),
+        };
+
+        final res1 = await alice.sendEventForTesting(peerBob, duplicateEvent);
+        expect(res1['ok'], isTrue);
+        expect(chatCount, 1);
+
+        // Replaying the same message event must not trigger onChat again
+        final res2 = await alice.sendEventForTesting(peerBob, duplicateEvent);
+        expect(res2['ok'], isTrue);
+        expect(chatCount, 1);
+      } finally {
+        await alice.dispose();
+        await bob.dispose();
+      }
+    }),
+  );
 }

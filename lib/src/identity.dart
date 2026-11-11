@@ -26,6 +26,10 @@ class Identity {
   static Future<Identity> load() async {
     final dir = await appDirectory();
     final file = File('${dir.path}${Platform.pathSeparator}identity.json');
+    return loadFromFile(file);
+  }
+
+  static Future<Identity> loadFromFile(File file) async {
     if (await RecoverableJsonFile.hasSavedState(file)) {
       // A corrupt or interrupted rename must never silently regenerate a
       // device identity: existing peers would lose their pinned trust.
@@ -35,8 +39,9 @@ class Identity {
           if (value is! Map<String, dynamic> ||
               value['private'] is! String ||
               value['public'] is! String ||
-              value['name'] is! String)
+              value['name'] is! String) {
             return false;
+          }
           try {
             return base64Decode(value['private'] as String).length == 32 &&
                 base64Decode(value['public'] as String).length == 32 &&
@@ -46,12 +51,23 @@ class Identity {
           }
         },
       ) as Map<String, dynamic>;
+      final privateBytes = base64Decode(obj['private'] as String);
+      final publicBytes = base64Decode(obj['public'] as String);
+
+      // Verify that stored public key strictly corresponds to the private key
+      // before accepting it into runtime state (LM-SEC-06).
+      final derivedPair = await X25519().newKeyPairFromSeed(privateBytes);
+      final derivedData = await derivedPair.extract();
+      final derivedPublic = derivedData.publicKey.bytes;
+      if (base64Encode(derivedPublic) != base64Encode(publicBytes)) {
+        throw StateError(
+          'Corrupted identity: stored public key does not match private key',
+        );
+      }
+
       final keyPair = SimpleKeyPairData(
-        base64Decode(obj['private'] as String),
-        publicKey: SimplePublicKey(
-          base64Decode(obj['public'] as String),
-          type: KeyPairType.x25519,
-        ),
+        privateBytes,
+        publicKey: SimplePublicKey(publicBytes, type: KeyPairType.x25519),
         type: KeyPairType.x25519,
       );
       return Identity(keyPair, obj['name'] as String);

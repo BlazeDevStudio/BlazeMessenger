@@ -477,6 +477,11 @@ class LanNode {
             : const Duration(seconds: 15),
       );
 
+  Future<Map<String, dynamic>> sendEventForTesting(
+    Peer peer,
+    Map<String, dynamic> event,
+  ) => _event(peer, event);
+
   /// A two-way encrypted call-specific probe. Modern peers can prove that
   /// THIS call ID remains active; an older v0.3.2 peer falls back to encrypted
   /// ping for compatibility, with weaker session-liveness guarantees.
@@ -572,7 +577,9 @@ class LanNode {
             id.isEmpty)
           return {'ok': false};
         if (_seenMessages.add('${peer.id}/$id')) {
-          if (_seenMessages.length > 10000) _seenMessages.clear();
+          if (_seenMessages.length > 10000) {
+            _seenMessages.remove(_seenMessages.first);
+          }
           onChat?.call(
             peer,
             ChatMessage(

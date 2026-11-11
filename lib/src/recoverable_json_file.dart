@@ -62,22 +62,24 @@ class RecoverableJsonFile {
   }
 
   static Future<void> _replace(File file, String encoded) async {
-    final pending = File('${file.path}.pending');
-    final backup = backupOf(file);
+    final targetPath = file.path;
+    final primary = File(targetPath);
+    final pending = File('$targetPath.pending');
+    final backup = File('$targetPath.bak');
     await pending.writeAsString(encoded, flush: true);
 
-    if (await file.exists()) {
+    if (await primary.exists()) {
       // Primary remains present until the complete pending write is flushed.
       if (await backup.exists()) await backup.delete();
-      await file.rename(backup.path);
+      await primary.rename(backup.path);
     }
     try {
-      await pending.rename(file.path);
+      await pending.rename(targetPath);
     } catch (_) {
       // If promotion fails, restore the last known primary where possible.
-      if (!await file.exists() && await backup.exists()) {
+      if (!await File(targetPath).exists() && await backup.exists()) {
         try {
-          await backup.rename(file.path);
+          await backup.rename(targetPath);
         } catch (_) {
           // Preserve the backup if the OS refuses rollback.
         }
