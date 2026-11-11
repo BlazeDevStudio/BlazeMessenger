@@ -101,4 +101,34 @@ void main() {
     expect(native, contains('.setUsage(usage)'));
     expect(native, contains('setupChannels()'));
   });
+
+  test('Remote control approval has no 5-minute timer and remains infinite until revoked', () {
+    final intercom = File('lib/src/intercom.dart')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
+    expect(
+      intercom,
+      contains(
+        'bool get remoteControlApproved =>\n'
+        '      _approvedControllerId != null &&\n'
+        '      _approvedControllerId == talkingTo?.id &&\n'
+        '      (_controlDeadline == null || DateTime.now().isBefore(_controlDeadline!));',
+      ),
+    );
+    expect(intercom, isNot(contains('Duration(minutes: 5)')));
+    expect(
+      intercom,
+      contains(
+        'approval is never\n'
+        '      // automatic, lasts indefinitely until revoked or call ends, and can be revoked locally.',
+      ),
+    );
+  });
+
+  test('Android remote touch accessibility configuration declares isAccessibilityTool="true"', () {
+    final xml = File('tool/remote_touch_accessibility.xml')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
+    expect(xml, contains('android:isAccessibilityTool="true"'));
+  });
 }

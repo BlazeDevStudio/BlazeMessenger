@@ -995,10 +995,10 @@ class _HomePageState extends State<HomePage>
         return _ask(
           title: 'Allow remote control?',
           detail:
-              '${peer.name} requests temporary control of your shared '
+              '${peer.name} requests control of your shared '
               '${Platform.isAndroid ? "Android screen" : "Windows screen"}. '
-              'Permission lasts up to 5 minutes. Stop sharing or revoke at any time.',
-          allowText: 'Allow for 5 minutes',
+              'Remote control remains active until revoked or until the call ends. Stop sharing or revoke at any time.',
+          allowText: 'Allow remote control',
         );
       };
       inter.onIncoming = (peer, incomingVideo) async {
@@ -1298,24 +1298,34 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _openAndroidAssistiveSettings() async {
     if (!Platform.isAndroid || !mounted) return;
+    const adbCmd =
+        'adb shell settings put secure enabled_accessibility_services com.example.lan_messenger/.RemoteTouchService && adb shell settings put secure accessibility_enabled 1';
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Enable optional remote control'),
-        content: const Text(
-          'LAN Messenger Remote Touch needs Android Accessibility access. '
-          'On Android 13+ an APK installed outside an app store may be '
-          'restricted: first try enabling LAN Messenger Remote Touch under '
-          'Settings > Accessibility > Installed apps. If the switch is gray, '
-          'open Settings > Apps > LAN Messenger > three-dot menu > '
-          'Allow restricted settings, then return to Accessibility. '
-          'Only permit this on your own trusted device. The caller must '
-          'still approve each remote session, and approval expires in five minutes.',
+        content: const SingleChildScrollView(
+          child: Text(
+            'LAN Messenger Remote Touch needs Android Accessibility access. '
+            'On Android 13+, sideloaded APKs have "Restricted Settings" enabled by default.\n\n'
+            'Ways to enable WITHOUT "Allow restricted settings":\n'
+            '• Install via a Session-based installer (e.g. Split APKs Installer / Obtainium / F-Droid), which bypasses sideload restrictions entirely.\n'
+            '• Run the ADB / Wireless Debugging / Shizuku command below to grant access instantly at system level.\n\n'
+            'Alternatively, open App info > three-dot menu > "Allow restricted settings", then go to Accessibility.\n\n'
+            'Remote control is owner-approved and remains active until you revoke it or end the call.',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(const ClipboardData(text: adbCmd));
+              Navigator.pop(ctx, 'copied');
+            },
+            child: const Text('Copy ADB command'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'app'),
@@ -1329,6 +1339,10 @@ class _HomePageState extends State<HomePage>
       ),
     );
     if (action == null) return;
+    if (action == 'copied') {
+      _toast('ADB command copied! Run in terminal or Wireless Debugging app');
+      return;
+    }
     try {
       await const MethodChannel('lan_messenger/remote').invokeMethod<void>(
         action == 'app' ? 'openAppInfo' : 'openAccessibilitySettings',

@@ -5,4 +5,4 @@
     android:notificationTimeout="100"
     android:canPerformGestures="true"
     android:description="@string/lan_remote_touch_description"
-    android:isAccessibilityTool="false" />
+    android:isAccessibilityTool="true" />

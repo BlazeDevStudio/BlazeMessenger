@@ -35,9 +35,9 @@ class Intercom {
   DateTime? _lastClickAt;
   Timer? _controlTimer;
   bool get remoteControlApproved =>
+      _approvedControllerId != null &&
       _approvedControllerId == talkingTo?.id &&
-      _controlDeadline != null &&
-      DateTime.now().isBefore(_controlDeadline!);
+      (_controlDeadline == null || DateTime.now().isBefore(_controlDeadline!));
   Future<bool> Function(Peer peer)? onRemoteControlRequest;
   void Function(String message)? onControlStatus;
   Future<DesktopCapturerSource?> Function(List<DesktopCapturerSource> sources)?
@@ -939,7 +939,7 @@ class Intercom {
     if (type == 'control-request') {
       if (!sharingScreen || !(Platform.isWindows || Platform.isAndroid)) return;
       // Existing authenticated peer + same live call ID; approval is never
-      // automatic, lasts five minutes, and can be revoked locally.
+      // automatic, lasts indefinitely until revoked or call ends, and can be revoked locally.
       var accepted =
           await (onRemoteControlRequest?.call(peer) ??
               Future<bool>.value(false));
@@ -958,15 +958,9 @@ class Intercom {
               .catchError((_) {}),
         );
       }
-      _controlDeadline = accepted
-          ? DateTime.now().add(const Duration(minutes: 5))
-          : null;
+      _controlDeadline = null;
       _controlTimer?.cancel();
-      if (accepted) {
-        _controlTimer = Timer(const Duration(minutes: 5), () {
-          unawaited(revokeRemoteControl());
-        });
-      }
+      _controlTimer = null;
       await node
           .signal(peer, {
             'type': 'control-grant',
